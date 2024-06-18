@@ -1,0 +1,154 @@
+body,html {
+    height: 97%
+}
+.leaflet-control-attribution.leaflet-control {
+    display: none;
+}
+.leaflet-marker-icon:hover {
+    transition: filter 0.15s;
+    filter: brightness(150%);
+}
+.leaflet-popup-content-wrapper, .leaflet-popup-tip{
+    background: #38352e !important;
+    color: #d4d4d4 !important;
+}
+.leaflet-popup-close-button {
+    font-size: 24px !important;
+    margin-right: 1%;
+}
+body {
+    font-family: 'Nunito';
+    background-color: #1d1a14;
+}
+#map { 
+    height: 97vh; 
+    width: 100%; 
+    background-color: #1d1a14; 
+}
+#made {
+    display: block;
+    position: absolute;
+    top: 0;
+    text-align: right;
+    bottom: 0;
+    right: 0;
+    font-size: large;
+    color: #FF0000;
+    text-decoration: none;
+
+}
+#dz {
+    color: #FF0000;
+}
+#dc {
+    position: absolute;
+    margin-top: 9%;
+    margin-left: 2%;
+    display: flex;
+    flex-direction: column;
+    width: 15%; 
+    cursor: pointer;
+} 
+#dn {
+    /* margin-top: 5%; */
+    position: absolute;
+    width: 32%;
+    height: 5%;
+    z-index: 1000;
+    display: none;
+    border-style: solid;
+    border-width: 3px;
+    border-color: #38352e;
+}
+.F {
+    display: none;
+    z-index: 1000;
+    transition: filter 0.15s;
+    border-style: solid;
+    border-width: 3px;
+    border-color: #38352e;
+}
+.F:hover {
+    filter: brightness(225%) !important;
+    width: 105% !important;
+    height: 105% !important;
+    margin-left: -2% !important;
+}
+#check {
+    position: relative;
+    transition: width 0.1s;
+    flex-direction: column;
+    visibility: hidden;
+    height: 0%;
+    width: 0%;
+    z-index: 1000;
+    background-color: rgb(56, 53, 46, 0.75);
+    color: #c0c0c0;
+    border-radius: 8px;
+    user-select: none;
+    -moz-user-select: none;
+}
+#reqs, #van {  
+    font-size: 20px;
+    text-align: center;
+    display: none;
+}
+#van {
+    padding-top: 0.1%;
+}
+#reqs {
+    padding-top: 0.5%;
+}
+#cinfo {
+    padding-top: 0.1%;
+    font-size: 16px;
+    text-align: center;
+    visibility: hidden;
+}
+#cinfodiv {
+    max-width: 90%;
+    margin-left: 5%;
+}
+#vandiv {
+    justify-content: center;
+    margin-right: 10%;
+}
+.ctitle {
+    text-decoration: underline;
+}
+.item {
+    display: flex;
+    align-items: center;
+    vertical-align: middle;
+    margin-left: 3%;
+    padding-bottom: 4%;
+}
+.iti {
+    position: relative;
+    padding-right: 5%;
+    padding-left: 5%;
+}
+.oritem {
+    display: flex;
+    align-items: center;
+    vertical-align: middle;
+    margin-left: 3%;
+    padding-bottom: 4%;
+    font-size: 16px;
+}
+#checkX {
+    position: absolute;
+    top: 0;
+    right: 0;
+    text-align: right;
+    padding-right: 8px;
+    padding-top: 2px;
+    color: #757575;
+    width: 22px;
+    height: 22px;
+    margin-top: 0%;
+    margin-bottom: 0%;
+    font: 22px Tahoma, Verdana, sans-serif;
+    font-weight: bolder;
+    cursor: pointer;
+}
