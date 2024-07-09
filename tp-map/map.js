@@ -7,7 +7,7 @@ function setFlag(cat, index, value) {
 }
 
 function getFlag(cat, index) {
-    return localStorage.getItem(cat)[index];
+    return localStorage.getItem(cat)[index] == '1';
 }
 
 //Classes
@@ -29,7 +29,7 @@ var Check = L.Marker.extend({
         setFlag(this.cat, this.index, val);
     },
     isSet: function() {
-        return getFlag(this.cat, this.index) == '1';
+        return getFlag(this.cat, this.index);
     },
     isMarked: function() {
         return this.isSet();
@@ -48,10 +48,25 @@ var Check = L.Marker.extend({
         this.on('contextmenu', this.setAsMarked);
         this.set('0');
     },
+    isVisible: function() {
+        return activeMarkers.includes(this.cat);
+    },
     load: function() {
-        this.addTo(map);
-        if(this.isSet())
-            this.setAsMarked();
+        if (this.isVisible()) {
+            if (getFlag('settings', 12) && this.van != undefined) {
+                let temp = this.options.icon;
+                L.setOptions(this, {icon: this.van});
+                this.addTo(map);
+                L.setOptions(this, {icon: temp});
+            } 
+            else
+                this.addTo(map);
+            if(this.isSet())
+                this.setAsMarked();
+            return true;
+        }
+        else 
+            return false;     
     },
     showDetails: function() {
         var box = document.getElementById('check');
@@ -155,6 +170,17 @@ var Submap = L.Marker.extend({
     },
 
     loadIcon: function() {
+        if (!(getFlag('settings', 11))) {
+            let notVisible = true;
+            for (let i = 0; i < this.checks.length; ++i) {
+                if (this.checks[i].isVisible()) {
+                    notVisible = false;
+                    break;
+                }     
+            }    
+            if (notVisible)
+                return;     
+        }
         this.addTo(map);
         if (this.isMarked()) 
             this.setAsMarked(); 
@@ -164,7 +190,11 @@ var Submap = L.Marker.extend({
 
     load: function() {
         loadSubmap(this._latlng);
+        loadedDungeon = this;
         this.image.addTo(map);
+        this.loadChecks();      
+    },
+    loadChecks: function() {
         for(let i = 0; i < this.checks.length; ++i) 
             this.checks[i].load();
     }
@@ -182,6 +212,20 @@ var DungeonFloor = L.ImageOverlay.extend({
         map.setMaxBounds(L.latLngBounds(
             [[this._bounds.getNorthWest().lat, this._bounds.getNorthWest().lng - 300], 
             [this._bounds.getSouthEast()]]));
+        this.loadChecks();
+        
+    },
+    isVisible: function () {
+        let visible = false;
+        for (let i = 0; i < this.checks.length; ++i) {
+            if (this.checks[i].isVisible()) {
+                visible = true;
+                break;
+            }     
+        }  
+        return visible; 
+    },
+    loadChecks : function() {
         for(let i = 0; i < this.checks.length; ++i) 
             this.checks[i].load();
     },
@@ -206,7 +250,7 @@ var DungeonFloor = L.ImageOverlay.extend({
 var Dungeon = Submap.extend({
     initialize: function(latLng, floors) {
         this._latlng = L.latLng(latLng);
-        L.setOptions(this, { icon: starI});
+        L.setOptions(this, {icon: starI});
         this.floors = floors;   
         this.on('click', this.load);
         this.on('contextmenu', this.mark);
@@ -231,6 +275,24 @@ var Dungeon = Submap.extend({
         }
         return true;
     },
+    loadIcon: function() {
+        if (!getFlag('settings', 11)) {
+            let notVisible = true;
+            for (let i = 0; i < this.floors.length; ++i) {
+                if (this.floors[i].isVisible()) {
+                    notVisible = false;
+                    break;
+                }     
+            }    
+            if (notVisible)
+                return;     
+        }
+        this.addTo(map);
+        if (this.isMarked()) 
+            this.setAsMarked(); 
+        else
+            this.setAsUnmarked();
+    },
     loadFloor: function(index) {
         this.images[index].addTo(map);
     },
@@ -248,6 +310,37 @@ var Dungeon = Submap.extend({
         document.getElementById('F1').click();
     }
 });
+class TrackerItem {
+    constructor(elem, type, max) {
+        this.elem = elem;
+        this.type = type;
+        this.max = max;
+        this.state = 0;
+        elem.addEventListener('click', this.increaseState);
+    }
+    increaseState() {
+        console.log(this.state);
+        ++this.state;
+        if (this.state > this.max)
+            this.state = 0;
+        this.updateTracker();
+
+    }
+    decreaseState() {
+        --this.state;
+        if (this.state < 0)
+            this.state = this.max;
+        this.updateTracker();
+    }
+    updateTracker() {
+        switch(this.state) {
+            case 0: this.elem.style.filter = "brightness(50%);"; break;
+            case 1: this.elem.style.filter = "brightness(100%);"; break;
+                
+        }
+    }
+
+}
 
 
 //Icons
@@ -255,7 +348,7 @@ var cI = L.icon({iconUrl: 'Icons/Chest.png', iconSize: [60, 52]});
 var sCI = L.icon({iconUrl: 'Icons/SmallChest.png', iconSize: [60, 52]});
 var hPI = L.icon({iconUrl:'Icons/Heart Piece.png', iconSize: [55, 43]});
 var hCI = L.icon({iconUrl:'Icons/Heart Container.png', iconSize: [55, 43]});
-var grottoI = L.icon({iconUrl: 'Icons/Grotto.png', iconSize: [50, 50]});
+var grottoI = L.icon({iconUrl: 'Icons/Grotto.png', iconSize: [45, 45]});
 var starI = L.icon({iconUrl: 'Icons/Star.png', iconSize: [50, 50]});
 var gBI = L.icon({iconUrl: 'Icons/Gale Boomerang.png', iconSize: [36, 60]});
 var bACI = L.icon({iconUrl: 'Icons/Ball And Chain.png', iconSize: [60, 56]});
@@ -280,6 +373,9 @@ var sRI = L.icon({iconUrl: 'Icons/Silver Rupee.png', iconSize: [35, 55]});
 
 
 //Global variables
+var activeMarkers = [];
+var mapState;
+var settings;
 var checks;
 var submaps;
 var TL;
@@ -296,7 +392,6 @@ var visDunPop = true;
 
 document.addEventListener("DOMContentLoaded", function() {
     if(localStorage.getItem("base") == null) {
-        console.log('Setting');
         localStorage.setItem('base', // 400 checks
         "00000000000000000000000000000000000000000000000000" + 
         "00000000000000000000000000000000000000000000000000" +
@@ -312,8 +407,105 @@ document.addEventListener("DOMContentLoaded", function() {
         localStorage.setItem('skills', '0000000'); // 7 checks
         localStorage.setItem('skyc', '000000'); // 6 checks
         localStorage.setItem('shop', '0000'); // 4 checks
-        localStorage.setItem('fake', '0000000000000000000000000000000000000000000000000000000000'); // 58 checks
+        localStorage.setItem('fake', '0000000000000000000000000000000000000000000000000000000000'); // 58 flags
+        localStorage.setItem('settings', '111111111111011111111111111111111111111111111111111111111111'); // 60 flags
     }
+    var setche = document.getElementById('setche');
+    setche.addEventListener('click', function () {
+        if (settings[0].checked) {
+            let allUnchecked = true;
+            for (let i = 1; i < 8; ++i)
+                allUnchecked = allUnchecked && !settings[i].checked;
+            if (allUnchecked) {
+                setFlag('settings', 0, '0');
+                settings[0].checked = false;
+            }
+                
+        }
+        else {
+            for (let i = 1; i < 8; ++i)
+                if (settings[i].checked) {
+                    settings[0].checked = true;
+                    setFlag('settings', 0, '1');
+                    break;
+                }
+        } 
+        if (settings[8].checked) {
+            let allUnchecked = true;
+            for (let i = 9; i < 11; ++i)
+                allUnchecked = allUnchecked && !settings[i].checked;
+            if (allUnchecked) {
+                setFlag('settings', 8, '0');
+                settings[8].checked = false;
+            }
+                
+        }
+        else {
+            for (let i = 9; i < 11; ++i)
+                if (settings[i].checked) {
+                    settings[8].checked = true;
+                    setFlag('settings', 8, '1');
+                    break;
+                }
+        }         
+    })
+    var settingsFlags = localStorage.getItem('settings');
+    settings = document.querySelectorAll("input[type='checkbox']");
+    settings[0].addEventListener('click', function() {
+        if (this.checked) {
+            setFlag('settings', 0, '1');
+            for (let i = 1; i < 8; ++i) {
+                settings[i].click();
+            }          
+        }
+        else {
+            setFlag('settings', 0, '0');
+            for (let i = 1; i < 8; ++i) {
+                if (settings[i].checked)
+                    settings[i].click();
+            }
+        }
+    });
+    settings[1].addEventListener('click', function() {iconSet('base', 1)});
+    settings[2].addEventListener('click', function() {iconSet('poes', 2)});
+    settings[3].addEventListener('click', function() {iconSet('bugs', 3)});
+    settings[4].addEventListener('click', function() {iconSet('gifts', 4)});
+    settings[5].addEventListener('click', function() {iconSet('skyc', 5)});
+    settings[6].addEventListener('click', function() {iconSet('skills', 6)});
+    settings[7].addEventListener('click', function() {iconSet('shop', 7)});
+    settings[8].addEventListener('click', function() {
+        if (this.checked) {
+            setFlag('settings', 8, '1');
+            for (let i = 9; i < 11; ++i) {
+                settings[i].click();
+            }          
+        }
+        else {
+            setFlag('settings', 8, '0');
+            for (let i = 9; i < 11; ++i) {
+                if (settings[i].checked)
+                    settings[i].click();
+            }
+        }
+    });
+    settings[9].addEventListener('click', function() {iconSet('fake', 9)});
+    settings[10].addEventListener('click', function() {iconSet('doors', 10)});
+    settings[11].addEventListener('click', function() {
+        setFlag('settings', 11, settings[11].checked ? '1': '0'); 
+        reloadIcons();
+    });
+    settings[12].addEventListener('click', function() {
+        setFlag('settings', 12, settings[12].checked ? '1': '0'); 
+        reloadIcons();
+    });
+
+
+    var t = document.getElementsByClassName('titem');
+    new TrackerItem(t[0], 0, 1);
+
+
+
+
     dn =  document.getElementById("dn");
     map = L.map('map', {
         zoom: -4,
@@ -331,6 +523,11 @@ document.addEventListener("DOMContentLoaded", function() {
     loadMainMap(); 
     window.addEventListener('keydown', mainPopupControls);
     map.on('keydown', mainPopupControls);  
+    document.getElementById("setIcon").addEventListener('click', function() { showRightMenu(document.getElementById('settings'), "25%")});
+    document.getElementById("setX").addEventListener('click', function() { hideRightMenu(document.getElementById('settings'))});
+    document.getElementById("trackerIcon").addEventListener('click', function() { showRightMenu(document.getElementById('tracker'), "29%")});
+    document.getElementById("traX").addEventListener('click', function() { hideRightMenu(document.getElementById('tracker'))});
+    
     mainPopup = L.popup([-7826, 14050], {closeOnClick: false, maxWidth: 360, content: `
         <div style="text-align:center; width: 100%">
         <h2 style="text-decoration:underline">Controls</h2>
@@ -341,6 +538,7 @@ document.addEventListener("DOMContentLoaded", function() {
         <b>Click</b> anywhere on the map to <i>Hide</i> the details tab</br>
         <b>Right Click</b> on a check to <i>Mark / Unmark </i> it</br>
         <b>Click</b> on a submap (Dungeon / Grotto) to <i>Zoom</i> into it</br>
+        <b>Zoom Out</b> of a submap to <i>Exit</i> it</br>
         <b>Right Click</b> on a submap to <i>Mark / Unmark </i> all the checks inside it</br>
         Press <b>Q</b> to <i>Close / Reopen</i> this popup</br>
         </p></div>`
@@ -359,11 +557,11 @@ document.addEventListener("DOMContentLoaded", function() {
         <b>Zoom Out</b> to <i>Exit</i> the dungeon map
         </p></div>`
     });
-    mainPopup.openOn(map); 
+    // mainPopup.openOn(map); 
     checks = [
         new Check([-5013, 3818], cI, 0, 'base', 0, hPI, [clawI], "Use the clawshot on the vines and climb up completely on the platform. Then, grab the ledge to the left of the vines " +
             "and slide right until you reach the platform with the chest."),
-        new Check([-5357, 3494], sCI, 1, 'base', 1, yRI, undefined, "Play the Flight By Fowl minigame (20 rupees) and use the Cucoo to reach the chest."),
+        new Check([-5357, 3494], sCI, 1, 'base', 1, yRI, undefined, "Play the Flight By Fowl minigame (20 rupees) and use the Cucco to reach the chest."),
         new Check([-6048, 8007], hPI, 2, 'base', 2, undefined, [bABI, gBI, 0, clawI], "Use the bomb arrows to blow up the rocks up on the ledge, than use the boomerang or the clawshot to obtain the heart piece"),
     ];
     submaps = [
@@ -421,6 +619,21 @@ document.addEventListener("DOMContentLoaded", function() {
         
         
     ];
+    for(var i = 0; i < settings.length; i++) {
+        if (settingsFlags[i] == '1') {
+            settings[i].checked = true;
+            switch(i) {
+                case 1: activeMarkers.push('base'); break;
+                case 2: activeMarkers.push('poes'); break;
+                case 3: activeMarkers.push('bugs'); break;
+                case 4: activeMarkers.push('gifts'); break;
+                case 5: activeMarkers.push('skyc'); break;
+                case 6: activeMarkers.push('skills'); break;
+                case 7: activeMarkers.push('shop'); break;
+                case 9: activeMarkers.push('fake'); break;
+           }
+        }   
+    }
     for(let i = 0; i < 8; ++i) {
         let floor = document.getElementById('F' + (i + 1));
         floor.addEventListener("click", function () {
@@ -465,6 +678,7 @@ document.addEventListener("DOMContentLoaded", function() {
     
     
 function loadMainMap() {
+    mapState = 0;
     document.getElementById('made').style.display = 'block';
     map.setMinZoom(-4);
     map.dragging.disable();
@@ -544,6 +758,7 @@ function leaveRegion() {
 }
 
 function loadProvinces() {
+    mapState = 1;
     map.setMinZoom(-5);
     document.getElementById('made').style.display = 'none';
     TL = L.tileLayer('Tiles/{z}/{x}/{y}.png', {
@@ -569,6 +784,7 @@ function loadDungeonIcons() {
     submaps[1].loadIcon();
 }
 function loadSubmap(pos) {
+    mapState = 3;
     map.setView(pos, 0);     
     map.dragging.disable();
     TL.setOpacity(0.3);
@@ -582,10 +798,12 @@ function exitSubmap() {
     unload();
     map.setMinZoom(-5);
     map.dragging.enable();
+    mapState = 1;
     TL.setOpacity(1);
     loadMainIcons();
 }
 function loadDungeon() {
+    mapState = 2;
     reset();
     map.setView([-5384, 4652], -2);
     if (visDunPop)
@@ -611,6 +829,7 @@ function exitDungeon() {
     map.on('keydown', mainPopupControls);
     if (visMainPop) 
         mainPopup.openOn(map);
+    mapState = 1;
     TL.addTo(map);
     map.setMaxBounds([[0, 0], [-10768, 9304]]);
     loadMainIcons();
@@ -625,29 +844,31 @@ function resetFloorButtons() {
     }  
 }
 function dungeonControls(e) {
+    if (!(e instanceof KeyboardEvent))
+        return;
     var key = e.key;
     let prevFloor = activeFloor;
     if (key == undefined)
         key = e.originalEvent.key;
-
     if (key == "ArrowDown" || key == 's') {
         if (activeFloor == 1) 
             activeFloor = loadedDungeon.length;         
         else
             --activeFloor; 
     }
-    else if (key == 'ArrowUp' || key == 'w')
+    else if (key == 'ArrowUp' || key == 'w') {
         if (activeFloor == loadedDungeon.length) 
             activeFloor = 1;
         else
             ++activeFloor;
+    }
     else if (key == 'e' || key == "ArrowRight") {
         if (loadedDungeon[activeFloor - 1].isMarked())
             loadedDungeon[activeFloor - 1].unset();
         else
             loadedDungeon[activeFloor - 1].set();
     }
-    else if (key == 'q')
+    else if (key == 'q') {
         if(dungeonPopup.isOpen()) {
             map.closePopup(dungeonPopup);
             visDunPop = false;
@@ -656,15 +877,9 @@ function dungeonControls(e) {
             map.openPopup(dungeonPopup);
             visDunPop = true;
         }
-
+    }
     if (activeFloor != prevFloor)
         document.getElementById('F' + activeFloor).click();
-}
-function unload() {
-    map.eachLayer(function(l) {
-        if (l != TL)
-            map.removeLayer(l);
-    });
 }
 
 function zoomOnClick(e) {
@@ -683,6 +898,7 @@ function dezoomToMainMap() {
         return;
     map.off('zoomend', dezoomToMainMap);    
     map.setView([0, 0], -4);
+    hideDetails();
     reset();
     loadMainMap();
     //loadDungeonIcons();
@@ -692,7 +908,7 @@ function mainPopupControls(e) {
     if (key == undefined)
         key = e.originalEvent.key;
 
-    if (key == 'q')
+    if (key == 'q') {
         if(mainPopup.isOpen()) {
             map.closePopup(mainPopup);
             visMainPop = false;
@@ -701,6 +917,7 @@ function mainPopupControls(e) {
             map.openPopup(mainPopup);
             visMainPop = true;
         }
+    }
 }
 function resetDungeonFloor() {
     map.eachLayer(function(l) {
@@ -713,7 +930,21 @@ function reset() {
         if(l != mainPopup)
             map.removeLayer(l);
     });
-}    
+}  
+function unload() {
+    map.eachLayer(function(l) {
+        if (l != TL)
+            map.removeLayer(l);
+    });
+}  
+function reloadIcons() {
+    switch (mapState) {
+        case 0 :  reset(); loadMainMap(); break;
+        case 1 :  unload(); loadMainIcons(); break;
+        case 2 :  resetDungeonFloor(); loadedDungeon[activeFloor - 1].load(); break;
+        case 3 :  unload(); loadedDungeon.load(); break;
+    }
+}
 function hideDetails() {
     var box = document.getElementById('check'); 
     document.getElementById('cinfo').style.visibility = "hidden";
@@ -726,4 +957,55 @@ function hideDetails() {
     }, 100);
     
     map.off('click', hideDetails);
+}
+function showSettings() {
+    var box = document.getElementById('settings');
+    box.style.visibility = "visible";
+    box.style.width = "25%";
+    box.style.height = "100%";
+    document.getElementById("setIcon").style.display = "none";
+    document.getElementById("trackerIcon").style.display = "none";
+    document.getElementsByClassName("leaflet-popup-pane")[0].style.display = "none";
+}
+function hideSettings() {
+    var box = document.getElementById('settings'); 
+    box.style.width = "0%";
+    document.getElementById("setIcon").style.display = "inline";
+    document.getElementById("trackerIcon").style.display = "inline";
+    document.getElementsByClassName("leaflet-popup-pane")[0].style.display = "inline";
+    setTimeout(function() {
+        box.style.height = "0%";
+        box.style.visibility = "hidden";       
+    }, 100);  
+}
+function showRightMenu(box, width) {
+    box.style.visibility = "visible";
+    box.style.width = width;
+    box.style.height = "100%";
+    document.getElementById("setIcon").style.display = "none";
+    document.getElementById("trackerIcon").style.display = "none";
+    document.getElementsByClassName("leaflet-popup-pane")[0].style.display = "none";
+}
+function hideRightMenu(box) {
+    box.style.width = "0%";
+    document.getElementById("setIcon").style.display = "inline";
+    document.getElementById("trackerIcon").style.display = "inline";
+    document.getElementsByClassName("leaflet-popup-pane")[0].style.display = "inline";
+    setTimeout(function() {
+        box.style.height = "0%";
+        box.style.visibility = "hidden";       
+    }, 100);  
+}
+function iconSet(cat, index) {
+    if (settings[index].checked) {
+        activeMarkers.push(cat);
+        setFlag('settings', index, '1');
+    }
+    else {
+        let i = activeMarkers.indexOf(cat);
+        if (i > -1)
+            activeMarkers.splice(i, 1);   
+        setFlag('settings', index, '0');
+    }
+    reloadIcons();
 }

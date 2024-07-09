@@ -12,8 +12,8 @@
     <body>
         <div id="body">           
             <div id="map">
-                <div id="check">
-                    <p id="checkX">×</p>
+                <div id="check" class="menu">
+                    <p id="checkX" class="menuX">×</p>
                     <div id="van">
                         <h3 class = "ctitle">Content</h3>
                         <div id="vandiv" class="item"></div>
@@ -26,6 +26,363 @@
                         <h4 class = "ctitle" style="font-size: 20px;">Description</h4>
                         <div id="cinfodiv"></div>
                     </div>
+                </div>
+                <img src="Icons/Settings.png" id="setIcon">
+                <p class="tt" id="setTT">Settings</p>
+                <img src="Icons/Tracker.png" id="trackerIcon">
+                <p class="tt" id="trackerTT">Tracker</p>
+                <div id="settings" class="menu">
+                    <p id="setX" class="menuX">×</p>
+                    <h2 style="text-decoration: underline; font-size: 20px;">Settings</h2>
+                    <div id="setche">
+                        <h3 class="seth">Markers visibility</h3>
+                        <input type="checkbox" id="checkS" class="bigSC">
+                        <label for="checkS" class="bigSL">Show Checks</label><br>
+                        <input type="checkbox" id="baseS" class="SC">
+                        <label for="baseS" class="SL">Show Base Checks</label><br>
+                        <input type="checkbox" id="poesS" class="SC">
+                        <label for="poesS" class="SL">Show Poe Souls</label><br>
+                        <input type="checkbox" id="bugsS" class="SC">
+                        <label for="bugsS" class="SL">Show Golden Bugs</label><br>
+                        <input type="checkbox" id="giftsS" class="SC">
+                        <label for="giftsS" class="SL">Show Gifts from NPCs</label><br>
+                        <input type="checkbox" id="skyS" class="SC">
+                        <label for="skyS" class="SL">Show Sky Characters</label><br>
+                        <input type="checkbox" id="skillS" class="SC">
+                        <label for="skillS" class="SL">Show Hidden Skills</label><br>
+                        <input type="checkbox" id="shopS" class="SC">
+                        <label for="shopS" class="SL">Show Shops</label><br>
+                        <input type="checkbox" id="ncheckS" class="bigSC">
+                        <label for="ncheckS" class="bigSL">Show Non-Checks</label><br>
+                        <input type="checkbox" id="ooccooS" class="SC">
+                        <label for="ooccooS" class="SL">Show Ooccoo</label><br>
+                        <input type="checkbox" id="locdoorS" class="SC">
+                        <label for="locdoorS" class="SL">Show Locked Doors</label><br>
+                        <input type="checkbox" id="emptysubS" class="bigSC">
+                        <label for="emptysubS" class="bigSL">Show Empty Submaps</label><br>
+                        <input type="checkbox" id="chestS" class="bigSC">
+                        <label for="chestS" class="bigSL">Show Chests as their Base Game Content</label><br>
+                        <h3 class="seth">General settings</h3>
+                        <input type="checkbox" id="subcounterS" class="bigSC">
+                        <label for="subcounterS" class="bigSL">Show Check Counters for Submaps</label><br>
+                        <input type="checkbox" id="trackerL" class="bigSC">
+                        <label for="trackerL" class="bigSL">Enable Tracker Logic</label><br>
+
+
+                    </div>               
+                </div>
+                <div id="tracker" class="menu">
+                    <p id="traX" class="menuX">×</p>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Fishing Rod.png" class="timage" 
+                        style="width: 24.2px; height: 55px; margin-left: 23px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Slingshot.png" class="timage" 
+                        style="width: 35.6px; height: 55px; margin-left: 18px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Lantern.png" class="timage" 
+                        style="width: 29.3px; height: 55px; margin-left: 20px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Boomerang.png" class="timage" 
+                        style="width: 27.5px; height: 55px; margin-left: 21px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Iron Boots.png" class="timage" 
+                        style="width: 55px; height: 55px; margin-left: 5px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Bow0.png" class="timage" 
+                        style="width: 55px; height: 55px; margin-left: 5px;">
+                    </div>
+                  
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Hawkeye.png" class="timage" 
+                        style="width: 53px; height: 47.6px; margin-left: 7px; margin-top: 18px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Bomb Bag.png" class="timage" 
+                        style="width: 40.7; height: 55px; margin-left: 12px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Giant Bomb Bag.png" class="timage" 
+                        style="width: 41.9px; height: 55px; margin-left: 13px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Clawshot0.png" class="timage" 
+                        style="width: 39.3px; height: 55px; margin-left: 13px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Spinner.png" class="timage" 
+                        style="width: 55px; height: 39.3px; margin-left: 5.7px; margin-top: 22px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/BAC.png" class="timage" 
+                        style="width: 55px; height: 46px; margin-left: 6px; margin-top: 16px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Dominion Rod0.png" class="timage" 
+                        style="width: 36.2; height: 55px; margin-left: 15px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Horse Call.png" class="timage" 
+                        style="width: 27.5px; height: 55px; margin-left: 21px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Skybook.png" class="timage" 
+                        style="width: 55px; height: 48px; margin-left: 5px; margin-top: 16px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Ashei.png" class="timage" 
+                        style="width: 41.1px; height: 55px; margin-left: 13px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Auru.png" class="timage" 
+                        style="width: 41.1px; height: 55px; margin-left: 13px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Bottle0.png" class="timage" 
+                        style="width: 33.9px; height: 55px; margin-left: 16.5px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Shadow Crystal0.png" class="timage" 
+                        style="width: 26.9px; height: 55px; margin-left: 19px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Sword0.png" class="timage" 
+                        style="width: 35.7px; height: 55px; margin-left: 15px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Shield0.png" class="timage" 
+                        style="width: 49.3px; height: 55px; margin-left: 9px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Zora Armor.png" class="timage" 
+                        style="width: 46.9px; height: 55px; margin-left: 11px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Magic Armor.png" class="timage" 
+                        style="width: 46.1px; height: 55px; margin-left: 11px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Wallet0.png" class="timage" 
+                        style="width: 32.8px; height: 55px; margin-left: 19px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Skill.png" class="timage" 
+                        style="width: 41.9px; height: 55px; margin-left: 12px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/BeetleM.png" class="timage" 
+                        style="width: 55px; height: 44.6px; margin-left: 6px; margin-top: 18px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/PSoul.png" class="timage" 
+                        style="width: 51px; height: 55px; margin-left: 9px; margin-top: 11px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Scent0.png" class="timage" 
+                        style="width: 55px; height: 55px; margin-left: 6px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Heart Piece0.png" class="timage" 
+                        style="width: 55px; height: 42.3px; margin-left: 5.25px; margin-top: 20px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Heart Container.png" class="timage" 
+                        style="width: 55px; height: 42.8px; margin-left: 5.85px; margin-top: 20px">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Fused Shadow0.png" class="timage" 
+                        style="width: 51.9px; height: 55px; margin-left: 8.5px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Shard0.png" class="timage" 
+                        style="width: 55px; height: 52.2px; margin-left: 7px;">
+                    </div>
+                    <div style=" width: 60px; display: inline-block;"></div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Small KeyG.png" class="timage" 
+                        style="width: 55px; height: 55px; margin-left: 5px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Small KeyHC.png" class="timage" 
+                        style="width: 55px; height: 55px; margin-left: 5px;">
+                    </div>
+                    <div class="titem">
+                        <img src="Icons/ItemBox.png" class="tbox">
+                        <img src="Icons/Boss KeyHC0.png" class="timage" 
+                        style="width: 55px; height: 55px; margin-left: 5px;">
+                    </div>
+                    <br>
+                    <div class="tdungeon">
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tbbox">
+                            <img src="Icons/Diababa0.png" class="timage" 
+                            style="width: 63px; height: 65px; margin-left: 7px; margin-top: 15px;">
+                        </div>
+                        <br>
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tkbox">
+                            <img src="Icons/Small Key0.png" class="timage tki">
+                        </div>
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tbkbox">
+                            <img src="Icons/Boss Key0.png" class="timage tbki">
+                        </div>
+                    </div>
+                    <div class="tdungeon">
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tbbox">
+                            <img src="Icons/Fyrus0.png" class="timage" 
+                            style="width: 65px; height: 46.9px; margin-left: 4px; margin-top: 22px;">
+                        </div>
+                        <br>
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tkbox">
+                            <img src="Icons/Small Key0.png" class="timage tki">
+                        </div>
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tbkbox">
+                            <img src="Icons/GBK2.png" class="timage tbki"
+                            style="width: 35px; height: 31.4px; margin-left: 41px; margin-top: -70px;">
+                        </div>
+                    </div>
+                    <div class="tdungeon">
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tbbox">
+                            <img src="Icons/Morpheel0.png" class="timage" 
+                            style="width: 57.1px; height: 65px; margin-left: 8px; margin-top: 14px;">
+                        </div>
+                        <br>
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tkbox">
+                            <img src="Icons/Small Key0.png" class="timage tki">
+                        </div>
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tbkbox">
+                            <img src="Icons/Boss Key0.png" class="timage tbki">
+                        </div>
+                    </div>
+                    <div class="tdungeon">
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tbbox">
+                            <img src="Icons/Stallord0.png" class="timage" 
+                            style="width: 65; height: 55.7px; margin-left: 6px; margin-top: 19px;">
+                        </div>
+                        <br>
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tkbox">
+                            <img src="Icons/Small Key0.png" class="timage tki">
+                        </div>
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tbkbox">
+                            <img src="Icons/Boss Key0.png" class="timage tbki">
+                        </div>
+                    </div>
+                    <div class="tdungeon tdsr">
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tbbox">
+                            <img src="Icons/Blizzeta0.png" class="timage" 
+                            style="width: 64.1px; height: 65px; margin-left: 5px; margin-top: 11.5px;">
+                        </div>
+                        <br>
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tkbox">
+                            <img src="Icons/Small Key0.png" class="timage tki">
+                        </div>
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tbkbox">
+                            <img src="Icons/SBK.png" class="timage tbki"
+                            style="width: 22.7px; height: 35px; margin-left: 48px;">
+                        </div>
+                    </div>
+                    <div class="tdungeon tdsr">
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tbbox">
+                            <img src="Icons/Armogohma0.png" class="timage" 
+                            style="width: 65px; height: 50.4px; margin-left: 6px; margin-top: 22px;">
+                        </div>
+                        <br>
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tkbox">
+                            <img src="Icons/Small Key0.png" class="timage tki">
+                        </div>
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tbkbox">
+                            <img src="Icons/Boss Key0.png" class="timage tbki">
+                        </div>
+                    </div>
+                    <div class="tdungeon tdsr">
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tbbox">
+                            <img src="Icons/Argorok0.png" class="timage" 
+                            style="width: 65px; height: 58.8px; margin-left: 6px; margin-top: 16px;">
+                        </div>
+                        <br>
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tkbox">
+                            <img src="Icons/Small Key0.png" class="timage tki">
+                        </div>
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tbkbox">
+                            <img src="Icons/Boss Key0.png" class="timage tbki">
+                        </div>
+                    </div>
+                    <div class="tdungeon tdsr">
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tbbox">
+                            <img src="Icons/Zant0.png" class="timage" 
+                            style="width: 56.9px; height: 65px; margin-left: 10px; margin-top: 12px;">
+                        </div>
+                        <br>
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tkbox">
+                            <img src="Icons/Small Key0.png" class="timage tki">
+                        </div>
+                        <div class="titem">
+                            <img src="Icons/ItemBox.png" class="tbkbox">
+                            <img src="Icons/Boss Key0.png" class="timage tbki">
+                        </div>
+                    </div>
+                    
+                    
                 </div>
                 <div id="made">Made by 
                     <a id="dz" href="https://github.com/darkzant">DarkZant</a>
