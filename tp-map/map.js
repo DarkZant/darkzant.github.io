@@ -466,7 +466,7 @@ var visDunPop = true;
 document.addEventListener("DOMContentLoaded", function() {
     console.log("Width: " + window.visualViewport.width + " Height: " + window.visualViewport.height)
     console.time('Start');
-    if(localStorage.getItem("base") == null) {
+    if(localStorage.getItem("tracker") == null) {
         localStorage.setItem('base', // 400 checks
         "00000000000000000000000000000000000000000000000000" + 
         "00000000000000000000000000000000000000000000000000" +
