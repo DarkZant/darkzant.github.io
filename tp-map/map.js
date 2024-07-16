@@ -9,6 +9,12 @@ function setFlag(cat, index, value) {
 function getFlag(cat, index) {
     return localStorage.getItem(cat)[index] == '1';
 }
+function getFlagAsNumber(cat, index) {
+    return parseInt(localStorage.getItem(cat)[index]);
+}
+function getFlagAsCharCode(cat, index) {
+    return localStorage.getItem(cat)[index].charCodeAt(0);
+}
 
 //Classes
 
@@ -48,25 +54,56 @@ var Check = L.Marker.extend({
         this.on('contextmenu', this.setAsMarked);
         this.set('0');
     },
-    isVisible: function() {
-        return activeMarkers.includes(this.cat);
+    isShown: function() {
+        return this.categoryIsVisible() && (this.isAvailable() || !getFlag('settings', 15));
+    },
+    categoryIsVisible: function() {
+        return visibleCategories.includes(this.cat);
+    },
+    isAvailable: function() {
+        if (!getFlag('settings', 14) || this.reqs == undefined)
+            return true;
+        for (let i = 0; i < this.reqs.length; ++i) {
+            if (this.reqs[i].length == undefined) {
+                if (!obtainedItems.includes(this.reqs[i])) 
+                    return false
+            }
+            else {
+                let alternativesNotMet = true;
+                for (let j = 0; j < this.reqs[i].length; ++j) {
+                    if(obtainedItems.includes(this.reqs[i][j])) {
+                        alternativesNotMet = false;
+                        break;
+                    }
+                }
+                if (alternativesNotMet) 
+                    return false;
+            }
+        }
+        return true;
     },
     load: function() {
-        if (this.isVisible()) {
-            if (getFlag('settings', 12) && this.van != undefined) {
-                let temp = this.options.icon;
-                L.setOptions(this, {icon: this.van});
-                this.addTo(map);
-                L.setOptions(this, {icon: temp});
-            } 
-            else
-                this.addTo(map);
-            if(this.isSet())
-                this.setAsMarked();
-            return true;
+        if (!this.categoryIsVisible()) //If Check's Category isn't visible
+            return false;
+        let isNotAvailable = !this.isAvailable();
+        if (isNotAvailable && getFlag('settings', 15)) //Hide Checks Without Reqs
+                return false;
+        if (getFlag('settings', 12) && this.van != undefined) { //Show Chests as Base Content
+            let temp = this.options.icon;
+            L.setOptions(this, {icon: this.van});
+            this.addTo(map);
+            L.setOptions(this, {icon: temp});
+        } 
+        else
+            this.addTo(map);
+        if (isNotAvailable) { // Show Check as Non-Obtainable
+            this._icon.style.filter = 'grayscale(1) contrast(125%)';
+            this.setZIndexOffset(-500);
         }
-        else 
-            return false;     
+        if(this.isSet())
+            this.setAsMarked();
+        return true;
+       
     },
     showDetails: function() {
         var box = document.getElementById('check');
@@ -75,25 +112,26 @@ var Check = L.Marker.extend({
         box.style.height = "100%";
         if (this.van != undefined) {
             document.getElementById('van').style.display = "block";
-            document.getElementById('vandiv').innerHTML = this.iconToImg(this.van, 1);
+            document.getElementById('vandiv').innerHTML = this.iconToImg(this.van);
         }
         else 
             document.getElementById('van').style.display = "none";
         if (this.reqs != undefined) {
             document.getElementById('reqs').style.display = "block";
-            var rd = document.getElementById('reqsdiv');
-            rd.innerHTML = "";
+            let rdHtml = "";
             for (let i = 0; i < this.reqs.length; ++i) {
-                if (this.reqs[i + 1] == 0) {
-                    rd.innerHTML += '<div class="oritem"><p>•</p>' + this.iconToImg(this.reqs[i], 0.7) + '<p style="font-size: 30px; padding-left: 20px;">/</p>' +
-                    this.iconToImg(this.reqs[i + 2], 0.7) + '</div>';
-                    i += 2;
+                if (this.reqs[i].length != undefined) {
+                    rdHtml += '<div class="oritem"><p class="idot idotor">•</p>' + this.itemToImg(this.reqs[i][0], 1);
+                    for(let j = 1; j < this.reqs[i].length; ++j) {
+                        rdHtml += '<div class="itemo"><p class="por">or</p>' + this.itemToImg(this.reqs[i][j], 0.75) + '</div>';
+                    }
+                    rdHtml += '</div>';
                 }
                 else {
-                    rd.innerHTML += '<div class="item"><p>•</p>' + this.iconToImg(this.reqs[i], 1) + '</div>';
+                    rdHtml += '<div class="item"><p class="idot">•</p>' + this.itemToImg(this.reqs[i], 1) + '</div>';
                 }
-                
             }
+            document.getElementById('reqsdiv').innerHTML = rdHtml;
         }
         else 
             document.getElementById('reqs').style.display = "none";
@@ -101,10 +139,15 @@ var Check = L.Marker.extend({
         document.getElementById('cinfodiv').innerHTML = this.info;
         map.on('click', hideDetails);
     },
-    iconToImg: function(icon, mult) {
+    iconToImg: function(icon) {
         return '<img class="iti" src="' + icon.options.iconUrl +
-                '" style="width: ' + icon.options.iconSize[0] * mult + 'px; height: ' + icon.options.iconSize[1] * mult + 'px;">' + 
+                '" style="width: ' + icon.options.iconSize[0] + 'px; height: ' + icon.options.iconSize[1] + 'px;">' + 
                 '<p class="itp">' + icon.options.iconUrl.slice(6, -4) + '</p>';
+    },
+    itemToImg: function(item, mult) {
+        return '<img class="iti" src="' + item.mapIcon.options.iconUrl +
+                '" style="width: ' + item.mapIcon.options.iconSize[0] * mult + 'px; height: ' + item.mapIcon.options.iconSize[1] * mult + 'px;">' + 
+                '<p class="itp">' + item.name + '</p>';
     }
 });
 
@@ -121,6 +164,9 @@ var FakeCheck = Check.extend({
     },
     isMarked: function() {
         return true;
+    },
+    isShown: function() {
+        return false;
     }
 });
 
@@ -173,7 +219,7 @@ var Submap = L.Marker.extend({
         if (!(getFlag('settings', 11))) {
             let notVisible = true;
             for (let i = 0; i < this.checks.length; ++i) {
-                if (this.checks[i].isVisible()) {
+                if (this.checks[i].isShown()) {
                     notVisible = false;
                     break;
                 }     
@@ -209,16 +255,17 @@ var DungeonFloor = L.ImageOverlay.extend({
     },
     load: function() {
         this.addTo(map);
-        map.setMaxBounds(L.latLngBounds(
-            [[this._bounds.getNorthWest().lat, this._bounds.getNorthWest().lng - 300], 
-            [this._bounds.getSouthEast()]]));
         this.loadChecks();
-        
+        let nwp = this._bounds.getNorthWest();
+        let sep = this._bounds.getSouthEast();
+        setTimeout(function() {
+            map.setMaxBounds(L.latLngBounds([[nwp.lat, nwp.lng - 300], [sep]]));
+        }, 200);        
     },
-    isVisible: function () {
+    hasShownChecks: function () {
         let visible = false;
         for (let i = 0; i < this.checks.length; ++i) {
-            if (this.checks[i].isVisible()) {
+            if (this.checks[i].isShown()) {
                 visible = true;
                 break;
             }     
@@ -279,7 +326,7 @@ var Dungeon = Submap.extend({
         if (!getFlag('settings', 11)) {
             let notVisible = true;
             for (let i = 0; i < this.floors.length; ++i) {
-                if (this.floors[i].isVisible()) {
+                if (this.floors[i].hasShownChecks()) {
                     notVisible = false;
                     break;
                 }     
@@ -311,35 +358,20 @@ var Dungeon = Submap.extend({
     }
 });
 class TrackerItem {
-    constructor(elem, type, max) {
+    constructor(elem, type, max, items) {
         this.elem = elem;
         this.type = type;
         this.max = max;
+        this.items = items;
         this.state = 0;
-        elem.addEventListener('click', this.increaseState);
-    }
-    increaseState() {
-        console.log(this.state);
-        ++this.state;
-        if (this.state > this.max)
-            this.state = 0;
-        this.updateTracker();
-
-    }
-    decreaseState() {
-        --this.state;
-        if (this.state < 0)
-            this.state = this.max;
-        this.updateTracker();
-    }
-    updateTracker() {
-        switch(this.state) {
-            case 0: this.elem.style.filter = "brightness(50%);"; break;
-            case 1: this.elem.style.filter = "brightness(100%);"; break;
-                
-        }
-    }
-
+    } 
+}
+class Item {
+    constructor(name, mapIcon, trackerIcon) {
+       this.name = name;
+       this.mapIcon = mapIcon;
+       this.trackerIcon = trackerIcon;
+    } 
 }
 
 
@@ -350,15 +382,6 @@ var hPI = L.icon({iconUrl:'Icons/Heart Piece.png', iconSize: [55, 43]});
 var hCI = L.icon({iconUrl:'Icons/Heart Container.png', iconSize: [55, 43]});
 var grottoI = L.icon({iconUrl: 'Icons/Grotto.png', iconSize: [45, 45]});
 var starI = L.icon({iconUrl: 'Icons/Star.png', iconSize: [50, 50]});
-var gBI = L.icon({iconUrl: 'Icons/Gale Boomerang.png', iconSize: [36, 60]});
-var bACI = L.icon({iconUrl: 'Icons/Ball And Chain.png', iconSize: [60, 56]});
-var soulI = L.icon({iconUrl: 'Icons/Soul.png', iconSize: [50, 48]});
-var ooccooI = L.icon({iconUrl: 'Icons/Ooccoo.png', iconSize: [46.5, 50]});
-var shardI = L.icon({iconUrl: 'Icons/Shard.png', iconSize: [50, 47.4]});
-var mapI = L.icon({iconUrl: 'Icons/Map.png', iconSize: [50, 42]});
-var lockI = L.icon({iconUrl: 'Icons/Lock.png', iconSize: [40, 40]});
-var clawI = L.icon({iconUrl: 'Icons/Clawshot.png', iconSize: [49, 50]});
-var shaCryI = L.icon({iconUrl: 'Icons/Shadow Crystal.png', iconSize: [29, 60]});
 var bABI = L.icon({iconUrl: 'Icons/Bow + Bombs.png', iconSize: [47, 55]});
 var gRI = L.icon({iconUrl: 'Icons/Green Rupee.png', iconSize: [35, 55]}); 
 var bRI = L.icon({iconUrl: 'Icons/Blue Rupee.png', iconSize: [35, 55]});
@@ -368,12 +391,62 @@ var pRI = L.icon({iconUrl: 'Icons/Purple Rupee.png', iconSize: [35, 55]});
 var oRI = L.icon({iconUrl: 'Icons/Orange Rupee.png', iconSize: [35, 55]}); 
 var sRI = L.icon({iconUrl: 'Icons/Silver Rupee.png', iconSize: [35, 55]}); 
 
+var gBI = L.icon({iconUrl: 'Icons/Gale Boomerang.png', iconSize: [36, 60]});
+var bACI = L.icon({iconUrl: 'Icons/Ball And Chain.png', iconSize: [60, 56]});
+var soulI = L.icon({iconUrl: 'Icons/Soul.png', iconSize: [50, 48]});
+var ooccooI = L.icon({iconUrl: 'Icons/Ooccoo.png', iconSize: [46.5, 50]});
+var shardI = L.icon({iconUrl: 'Icons/Shard.png', iconSize: [50, 47.4]});
+var mapI = L.icon({iconUrl: 'Icons/Map.png', iconSize: [50, 42]});
+var lockI = L.icon({iconUrl: 'Icons/Lock.png', iconSize: [40, 40]});
+var clawI = L.icon({iconUrl: 'Icons/Clawshot.png', iconSize: [49, 50]});
+var dclawI = L.icon({iconUrl: 'Icons/ClawshotD.png', iconSize: [55, 51.1]})
+var shaCryI = L.icon({iconUrl: 'Icons/Shadow Crystal.png', iconSize: [29, 60]});
+//Tracker Icons
+var frI = L.icon({iconUrl: 'Icons/Fishing Rod0', iconSize: [24, 55]});
+var freI = L.icon({iconUrl: 'Icons/Fishing Rod1', iconSize: [24, 55]});
+var slI = L.icon({iconUrl: 'Icons/Slingshot', iconSize: [35.6, 55]});
+var laI = L.icon({iconUrl: 'Icons/Lantern', iconSize: [28.3, 55]});
+var gaboI = L.icon({iconUrl: 'Icons/Boomerang', iconSize: [27.5, 55]});
+var iBI = L.icon({iconUrl: 'Icons/Iron Boots.png', iconSize: [55, 55]});
+var boI = L.icon({iconUrl: 'Icons/Bow0.png', iconSize: [55, 55]});
+var bBI = L.icon({iconUrl: 'Icons/Bomb Bag.png', iconSize: [40.7, 55]});
+var claI = L.icon({iconUrl: 'Icons/Clawshot0.png', iconSize: [39.3, 55]});
+var doclaI = L.icon({iconUrl: 'Icons/Clawshot1.png', iconSize: [55, 43.7]});
+var spinI = L.icon({iconUrl: 'Icons/Spinner.png', iconSize: [39.3, 55]});
+var balChaI = L.icon({iconUrl: 'Icons/Ball and Chain0.png', iconSize: [39.3, 55]});
+var reddomI =  L.icon({iconUrl: 'Icons/Dominion Rod0.png', iconSize: [34.3, 55]});
+var domI =  L.icon({iconUrl: 'Icons/Dominion Rod1.png', iconSize: [34.3, 55]});
+var walI = L.icon({iconUrl: 'Icons/Wallet0.png', iconSize: [32.8, 55]});
+var walbigI = L.icon({iconUrl: 'Icons/Wallet1.png', iconSize: [35.9, 55]});
+var walgiI = L.icon({iconUrl: 'Icons/Wallet2.png', iconSize: [42.2, 55]});
+
+
+var fishingRod = new Item('Fishing Rod', frI, frI);
+var fishingRodCE = new Item('Fishing Rod + Earring', freI, freI);
+var slingshot = new Item('Slingshot', slI, slI);
+var lantern = new Item('Lantern', laI, laI);
+var boomerang = new Item('Gale Boomerang', gBI, gaboI);
+var ironBoots = new Item('Iron Boots', iBI, iBI);
+var bow = new Item("Hero's Bow", boI, boI);
+var bombBag = new Item('Bomb Bag', bBI, bBI);
+var clawshot = new Item('Clawshot', clawI, claI);
+var doubleClawshot = new Item('Double Clawshots', dclawI, doclaI);
+var spinner = new Item('Spinner', spinI, spinI);
+var ballAndChain = new Item('Ball and Chain', bACI, balChaI);
+var redDominionRod = new Item('Powerless Dominion Rod', reddomI, reddomI);
+var dominionRod = new Item('Dominion Rod', domI, domI);
+var shadowCrystal = new Item('Shadow Crystal', shaCryI, shaCryI);
+var wallet = new Item('Wallet', walI, walI);
+var bigWallet = new Item('Big Wallet', walbigI, walbigI);
+var giantWallet = new Item('Giant Wallet', walgiI, walgiI);
 
 
 
 
 //Global variables
-var activeMarkers = [];
+var visibleCategories = [];
+var trackerItems = [];
+var obtainedItems = [];
 var mapState;
 var settings;
 var checks;
@@ -391,6 +464,8 @@ var visDunPop = true;
 
 
 document.addEventListener("DOMContentLoaded", function() {
+    console.log("Width: " + window.visualViewport.width + " Height: " + window.visualViewport.height)
+    console.time('Start');
     if(localStorage.getItem("base") == null) {
         localStorage.setItem('base', // 400 checks
         "00000000000000000000000000000000000000000000000000" + 
@@ -409,6 +484,7 @@ document.addEventListener("DOMContentLoaded", function() {
         localStorage.setItem('shop', '0000'); // 4 checks
         localStorage.setItem('fake', '0000000000000000000000000000000000000000000000000000000000'); // 58 flags
         localStorage.setItem('settings', '111111111111011111111111111111111111111111111111111111111111'); // 60 flags
+        localStorage.setItem('tracker', '0000000000000000000000010\0\0' + '0\0' + '00000000000000000000000000000'); // 59 flags
     }
     var setche = document.getElementById('setche');
     setche.addEventListener('click', function () {
@@ -498,11 +574,105 @@ document.addEventListener("DOMContentLoaded", function() {
         setFlag('settings', 12, settings[12].checked ? '1': '0'); 
         reloadIcons();
     });
+    settings[13].addEventListener('click', function() {
+        setFlag('settings', 13, settings[13].checked ? '1': '0'); 
+        reloadIcons();
+    });
+    settings[14].addEventListener('click', function() {
+        setFlag('settings', 14, settings[14].checked ? '1': '0');
+        reloadIcons();
+    });
+    settings[15].addEventListener('click', function() {
+        setFlag('settings', 15, settings[15].checked ? '1': '0'); 
+        reloadIcons();
+    });
+    settings[16].addEventListener('click', function() {
+        setFlag('settings', 16, settings[16].checked ? '1': '0'); 
+        if(mapState > 0) {
+            if (settings[16].checked)
+                map.getContainer().style.width = '100vw'
+            else 
+                map.getContainer().style.width = '71vw'
+            map.invalidateSize(true);
+        }
+    });
 
 
     var t = document.getElementsByClassName('titem');
-    new TrackerItem(t[0], 0, 1);
-
+    for (let i = 0; i < t.length; ++i) {
+        t[i].addEventListener('click', function() {increaseState(i)});
+        t[i].addEventListener('contextmenu', function() {decreaseState(i)});
+    }
+    trackerItems[0] = new TrackerItem(t[0], 2, 2, [fishingRod, fishingRodCE]); // Fishing Rods
+    trackerItems[1] = new TrackerItem(t[1], 0, 1, slingshot); // Slingshot
+    trackerItems[2] = new TrackerItem(t[2], 0, 1, lantern); // Lantern
+    trackerItems[3] = new TrackerItem(t[3], 0, 1, boomerang); // Boomerang
+    trackerItems[4] = new TrackerItem(t[4], 0, 1, ironBoots);  // Iron Boots
+    trackerItems[5] = new TrackerItem(t[5], 1, 3, bow); // Bow
+    trackerItems[6] = new TrackerItem(t[6], 0, 1) // Hawkeye
+    trackerItems[7] = new TrackerItem(t[7], 3, 3, bombBag); // Bomb Bags
+    trackerItems[8] = new TrackerItem(t[8], 0, 1); // Big Bomb Bag
+    trackerItems[9] = new TrackerItem(t[9], 2, 2, [clawshot, doubleClawshot]); // Clawshots
+    trackerItems[10] = new TrackerItem(t[10], 0, 1, spinner); // Spinner
+    trackerItems[11] = new TrackerItem(t[11], 0, 1, ballAndChain); // Ball and Chain
+    trackerItems[12] = new TrackerItem(t[12], 2, 2, [redDominionRod, dominionRod]); // Dominion Rod
+    trackerItems[13] = new TrackerItem(t[13], 0, 1); // Horse Call
+    trackerItems[14] = new TrackerItem(t[14], 3, 7); // Sky Characters
+    trackerItems[15] = new TrackerItem(t[15], 0, 1); // Ashei's Sketch
+    trackerItems[16] = new TrackerItem(t[16], 0, 1); // Auru's Memo
+    trackerItems[17] = new TrackerItem(t[17], 3, 4); // Bottles
+    trackerItems[18] = new TrackerItem(t[18], 0, 1, shadowCrystal); // Shadow Crystal
+    trackerItems[19] = new TrackerItem(t[19], 1, 4); // Swords
+    trackerItems[20] = new TrackerItem(t[20], 1, 3); // Shields
+    trackerItems[21] = new TrackerItem(t[21], 0, 1); // Zora Armor
+    trackerItems[22] = new TrackerItem(t[22], 0, 1); // Magic Armor
+    trackerItems[23] = new TrackerItem(t[23], 2, 3, [wallet, bigWallet, giantWallet]); // Wallets
+    trackerItems[24] = new TrackerItem(t[24], 3, 7); // Hidden Skills
+    trackerItems[25] = new TrackerItem(t[25], 3, 24); // Golden Bugs
+    trackerItems[26] = new TrackerItem(t[26], 3, 60); // Poes
+    trackerItems[27] = new TrackerItem(t[27], 1, 5); // Scents
+    trackerItems[28] = new TrackerItem(t[28], 3, 45); // Heart Pieces
+    trackerItems[29] = new TrackerItem(t[29], 3, 8); // Heart Containers
+    trackerItems[30] = new TrackerItem(t[30], 3, 3); // Fused Shadows
+    trackerItems[31] = new TrackerItem(t[31], 3, 3); // Mirror Shards
+    trackerItems[32] = new TrackerItem(t[32], 0, 1); // Gate Keys
+    trackerItems[33] = new TrackerItem(t[33], 3, 3); // Hyrule Castle Keys
+    trackerItems[34] = new TrackerItem(t[34], 0, 1); // Hyrule Castle Boss Key
+    trackerItems[35] = new TrackerItem(t[35], 0, 1); // Diababa
+    trackerItems[36] = new TrackerItem(t[36], 3, 4); // Forest Temple Keys
+    trackerItems[37] = new TrackerItem(t[37], 0, 1); // Forest Temple Boss Key
+    trackerItems[38] = new TrackerItem(t[38], 0, 1); // Fyrus
+    trackerItems[39] = new TrackerItem(t[39], 3, 3); // Goron Mines Keys
+    trackerItems[40] = new TrackerItem(t[40], 3, 3); // Goron Mines Boss Keys
+    trackerItems[41] = new TrackerItem(t[41], 0, 1); // Morpheel
+    trackerItems[42] = new TrackerItem(t[42], 3, 3); // Lakebed Temple Keys
+    trackerItems[43] = new TrackerItem(t[43], 0, 1); // Lakebed Temple Boss Key
+    trackerItems[44] = new TrackerItem(t[44], 0, 1); // Stallord
+    trackerItems[45] = new TrackerItem(t[45], 3, 5); // Arbiter's Grounds Keys
+    trackerItems[46] = new TrackerItem(t[46], 0, 1); // Arbiter's Grounds Boss Key
+    trackerItems[47] = new TrackerItem(t[47], 0, 1); // Blizzeta
+    trackerItems[48] = new TrackerItem(t[48], 3, 4); // Snowpeak Ruins Keys
+    trackerItems[49] = new TrackerItem(t[49], 0, 1); // Snowpeak Ruins Boss Key
+    trackerItems[50] = new TrackerItem(t[50], 0, 1); // Armogohma
+    trackerItems[51] = new TrackerItem(t[51], 3, 3); // Temple of Time Keys
+    trackerItems[52] = new TrackerItem(t[52], 0, 1); // Temple of Time Boss Key
+    trackerItems[53] = new TrackerItem(t[53], 0, 1); // Argorok
+    trackerItems[54] = new TrackerItem(t[54], 3, 1); // City in the Sky Keys
+    trackerItems[55] = new TrackerItem(t[55], 0, 1); // City in the Sky Boss Key
+    trackerItems[56] = new TrackerItem(t[56], 0, 1); // Zant
+    trackerItems[57] = new TrackerItem(t[57], 3, 7); // Palace of Twilight Keys
+    trackerItems[58] = new TrackerItem(t[58], 0, 1); // Palace of Twilight Boss Key
+    for (let i = 0; i < trackerItems.length; ++i) {
+        let state = i == 25 || i == 26 || i == 28 ? getFlagAsCharCode('tracker', i) : getFlagAsNumber('tracker', i);
+        if (state < trackerItems[i].max / 2) {
+            for (let _ = 0; _ < state; ++_)
+                increaseState(i);
+        }
+        else {
+            for (let _ = trackerItems[i].max; _ >= state; --_)
+                decreaseState(i);
+        }
+    }
 
 
 
@@ -511,22 +681,20 @@ document.addEventListener("DOMContentLoaded", function() {
         zoom: -4,
         minZoom: -5,
         maxZoom: 0,
-        center: [0, 0],
-        bounds: [[0, 646], [646, 0]],
+        center: [-4913, 4257],
         crs: L.CRS.Simple,
         maxBoundsViscosity: 1,
         zoomControl: false,
-        doubleClickZoom: false,
         keyboard: false
     }); 
     map.on('contextmenu', function() {});
     loadMainMap(); 
     window.addEventListener('keydown', mainPopupControls);
     map.on('keydown', mainPopupControls);  
-    document.getElementById("setIcon").addEventListener('click', function() { showRightMenu(document.getElementById('settings'), "25%")});
-    document.getElementById("setX").addEventListener('click', function() { hideRightMenu(document.getElementById('settings'))});
-    document.getElementById("trackerIcon").addEventListener('click', function() { showRightMenu(document.getElementById('tracker'), "29%")});
-    document.getElementById("traX").addEventListener('click', function() { hideRightMenu(document.getElementById('tracker'))});
+    document.getElementById("setIcon").addEventListener('click', function() { showRightMenu('settings', "25vw")});
+    document.getElementById("setX").addEventListener('click', function() { hideRightMenu('settings')});
+    document.getElementById("trackerIcon").addEventListener('click', function() { showRightMenu('tracker', "29vw")});
+    document.getElementById("traX").addEventListener('click', function() { hideRightMenu('tracker')});
     
     mainPopup = L.popup([-7826, 14050], {closeOnClick: false, maxWidth: 360, content: `
         <div style="text-align:center; width: 100%">
@@ -558,23 +726,24 @@ document.addEventListener("DOMContentLoaded", function() {
         </p></div>`
     });
     // mainPopup.openOn(map); 
+    console.time('Checks Creation');
     checks = [
-        new Check([-5013, 3818], cI, 0, 'base', 0, hPI, [clawI], "Use the clawshot on the vines and climb up completely on the platform. Then, grab the ledge to the left of the vines " +
+        new Check([-4574, 3388], cI, 0, 'base', 0, hPI, [clawshot], "Use the clawshot on the vines and climb up completely on the platform. Then, grab the ledge to the left of the vines " +
             "and slide right until you reach the platform with the chest."),
-        new Check([-5357, 3494], sCI, 1, 'base', 1, yRI, undefined, "Play the Flight By Fowl minigame (20 rupees) and use the Cucco to reach the chest."),
-        new Check([-6048, 8007], hPI, 2, 'base', 2, undefined, [bABI, gBI, 0, clawI], "Use the bomb arrows to blow up the rocks up on the ledge, than use the boomerang or the clawshot to obtain the heart piece"),
+        new Check([-4928, 3063], sCI, 1, 'base', 1, yRI, undefined, "Play the Flight By Fowl minigame (20 rupees) and use the Cucco to reach the chest."),
+        new Check([-5610, 7578], hPI, 2, 'base', 2, undefined, [bow, bombBag,  [boomerang, clawshot]], "Use the bomb arrows to blow up the rocks up on the ledge, than use the boomerang or the clawshot to obtain the heart piece"),
     ];
     submaps = [
-        new Submap([-4173, 4253], {icon: grottoI}, 
-            L.imageOverlay('Submaps/OWCTGrotto.png', [[-3750, 3850], [-4643, 4637]]), 
+        new Submap([-3733, 3820], {icon: grottoI}, 
+            L.imageOverlay('Submaps/OWCTGrotto.png', [[-3310, 3417], [-4203, 4204]]), 
             [
-                new Check([-4126, 4239], cI, 3, 'base', 3, oRI, [clawI, shaCryI], "Use the clawshot on the vines to reach the grotto entrance. Once inside, " + 
+                new Check([-3718, 3801], cI, 3, 'base', 3, oRI, [clawshot, shadowCrystal], "Use the clawshot on the vines to reach the grotto entrance. Once inside, " + 
                  "defeat all the helmasaurs to make the chest appear.")
             ]),
-        new Dungeon([-3034, 1665], [
+        new Dungeon([-2626, 1229], [
             new DungeonFloor('Dungeons/Snowpeak/1F.png', [[-4045, 3552], [-6723, 5752]], {}, [                    
-                new Check([-6383, 4824], sCI, 6, 'base', 6, sRI, [bACI], "Break the armor with the Ball and Chain to reveal the chest."),
-                new Check([-6444, 4494], sCI, 7, 'base', 7, yRI, [bACI], "Break the armor with the Ball and Chain to reveal the chest."),
+                new Check([-6383, 4824], sCI, 6, 'base', 6, sRI, [ballAndChain], "Break the armor with the Ball and Chain to reveal the chest."),
+                new Check([-6444, 4494], sCI, 7, 'base', 7, yRI, [ballAndChain], "Break the armor with the Ball and Chain to reveal the chest."),
                 new Check([-5849, 3965], cI, 8, 'base', 8, undefined, undefined, "TODO"),
                 new Check([-5300, 3828], sCI, 10, 'base', 10, undefined, undefined, "TODO"),
                 new Check([-5410, 3987], cI, 11, 'base', 11, undefined, undefined, "TODO"),
@@ -587,9 +756,9 @@ document.addEventListener("DOMContentLoaded", function() {
                 new Check([-4536, 4306], sCI, 19, 'base', 19, undefined, undefined, "TODO"),
                 new FakeCheck([-5854, 5427], ooccooI, 0, undefined, "Pick up the pot where Ooccoo is hiding."),
                 new Check([-4878, 5634], cI, 21, 'base', 21, undefined, undefined, "TODO"),
-                new Check([-6004, 4665], soulI, 23, 'poes', 0, undefined, [shaCryI], "The poe is above the ice in the open."),
+                new Check([-6004, 4665], soulI, 23, 'poes', 0, undefined, [shadowCrystal], "The poe is above the ice in the open."),
                 new Check([-5433, 4663], sCI, 24, 'base', 24, undefined, undefined, "TODO"),
-                new Check([-6462, 4818], soulI, 25, 'poes', 1, undefined, [bACI, shaCryI], "Break the armor with the Ball and Chain to reveal the poe."),
+                new Check([-6462, 4818], soulI, 25, 'poes', 1, undefined, [ballAndChain, shadowCrystal], "Break the armor with the Ball and Chain to reveal the poe."),
                 new Check([-5582, 4732], mapI, 27, 'gifts', 0, undefined, undefined, "Talk to Yeta to obtain the dungeon map."),
                 new FakeCheck([-5113, 4254], lockI, 1, undefined, "Locked door icon, will probably change")
             ]),
@@ -597,16 +766,16 @@ document.addEventListener("DOMContentLoaded", function() {
                 new Check([-6348, 4666], cI, 5, 'base', 5, undefined, undefined, "TODO"),
                 new Check([-5140, 3828], cI, 9, 'base', 9, undefined, undefined, "TODO"),
                 new Check([-4448, 3827], cI, 17, 'base', 17, undefined, undefined, "TODO"),
-                new Check([-5738, 5566], soulI, 20, 'poes', 2, undefined, [bACI, shaCryI], "Break the ice blocks with the Ball and Chain to reveal the poe."),
+                new Check([-5738, 5566], soulI, 20, 'poes', 2, undefined, [ballAndChain, shadowCrystal], "Break the ice blocks with the Ball and Chain to reveal the poe."),
                 new Check([-4936, 5519], sCI, 22, 'base', 22, undefined, undefined, "TODO")
 
             ]),
             new DungeonFloor('Dungeons/Snowpeak/3F.png', [[-4957, 4030], [-5811, 5274]], {}, [
-                new Check([-5162, 4878], hCI, 4, 'base', 4, undefined, [bACI], "Defeat Blizzeta to obtain the Heart Container."),
-                new Check([-5268, 4680], shardI, 26, 'base', 26, undefined, [bACI], "Defeat Blizzeta and leave the dungeon via the Midna warp to obtain the Mirror Shard.")
+                new Check([-5162, 4878], hCI, 4, 'base', 4, undefined, [ballAndChain], "Defeat Blizzeta to obtain the Heart Container."),
+                new Check([-5268, 4680], shardI, 26, 'base', 26, undefined, [ballAndChain], "Defeat Blizzeta and leave the dungeon via the Midna warp to obtain the Mirror Shard.")
             ])
         ]), 
-        new Dungeon([-7113, 4116], [
+        new Dungeon([-6618, 3681], [
             new DungeonFloor('Dungeons/ToT/1F.png', [[-4957, 3530], [-5811, 5274]], {}, []),
             new DungeonFloor('Dungeons/ToT/2F.png', [[-4957, 3530], [-5811, 5274]], {}, []),
             new DungeonFloor('Dungeons/ToT/3F.png', [[-4957, 3530], [-5811, 5274]], {}, []),
@@ -619,18 +788,19 @@ document.addEventListener("DOMContentLoaded", function() {
         
         
     ];
+    console.timeEnd('Checks Creation');
     for(var i = 0; i < settings.length; i++) {
         if (settingsFlags[i] == '1') {
             settings[i].checked = true;
             switch(i) {
-                case 1: activeMarkers.push('base'); break;
-                case 2: activeMarkers.push('poes'); break;
-                case 3: activeMarkers.push('bugs'); break;
-                case 4: activeMarkers.push('gifts'); break;
-                case 5: activeMarkers.push('skyc'); break;
-                case 6: activeMarkers.push('skills'); break;
-                case 7: activeMarkers.push('shop'); break;
-                case 9: activeMarkers.push('fake'); break;
+                case 1: visibleCategories.push('base'); break;
+                case 2: visibleCategories.push('poes'); break;
+                case 3: visibleCategories.push('bugs'); break;
+                case 4: visibleCategories.push('gifts'); break;
+                case 5: visibleCategories.push('skyc'); break;
+                case 6: visibleCategories.push('skills'); break;
+                case 7: visibleCategories.push('shop'); break;
+                case 9: visibleCategories.push('fake'); break;
            }
         }   
     }
@@ -670,7 +840,7 @@ document.addEventListener("DOMContentLoaded", function() {
         navigator.clipboard.writeText("[" + Math.round(e.latlng.lat) + ", " + e.latlng.lng + "]")
     }
     map.on('click', onMapClick);
-
+    console.timeEnd('Start');
 });
 
     
@@ -680,10 +850,14 @@ document.addEventListener("DOMContentLoaded", function() {
 function loadMainMap() {
     mapState = 0;
     document.getElementById('made').style.display = 'block';
+    if (!settings[16].checked) {
+        map.getContainer().style.width = '100vw'
+        map.invalidateSize();
+    }
     map.setMinZoom(-4);
     map.dragging.disable();
     L.imageOverlay('MainMap/omx4.png', [[0, 0], [-10336, 10176]]).addTo(map); 
-    map.setMaxBounds([[0, 0], [-10336, 10176]]);  
+    map.setMaxBounds([[0, 0], [-10336, 10176]]);
     map.on("zoomend", zoomToProvinces);
     var faronPoly = L.polygon([
         [-5412, 5564], [-5432, 6028], [-5980, 6276], [-5944, 7028], [-6700, 7216], [-7144, 6960], [-8048, 5568], [-7844, 4680], 
@@ -759,6 +933,11 @@ function leaveRegion() {
 
 function loadProvinces() {
     mapState = 1;
+    if (!settings[16].checked) {
+        map.getContainer().style.width = '71vw'
+        map.invalidateSize();
+    }
+    map.invalidateSize();
     map.setMinZoom(-5);
     document.getElementById('made').style.display = 'none';
     TL = L.tileLayer('Tiles/{z}/{x}/{y}.png', {
@@ -766,11 +945,11 @@ function loadProvinces() {
         minZoom: -6,
         zoomOffset: 6,
         crs: L.CRS.Simple,
-        bounds: [[0, 0], [-10768, 9304]]
+        bounds: [[0, 0], [-9826, 8515]]
     }).addTo(map); 
     loadMainIcons(); 
-    map.on('zoomend', dezoomToMainMap);     
-    map.setMaxBounds([[0, 0], [-10768, 9304]]);      
+    map.on('zoomend', dezoomToMainMap);  
+    map.setMaxBounds([[500, -500], [-10000, 9000]]);    
 }
 function loadMainIcons() {
     for (let i = 0; i < checks.length; ++i) {
@@ -831,7 +1010,7 @@ function exitDungeon() {
         mainPopup.openOn(map);
     mapState = 1;
     TL.addTo(map);
-    map.setMaxBounds([[0, 0], [-10768, 9304]]);
+    map.setMaxBounds([[500, -500], [-10768, 9304]]);
     loadMainIcons();
 }
 function resetFloorButtons() {
@@ -939,10 +1118,10 @@ function unload() {
 }  
 function reloadIcons() {
     switch (mapState) {
-        case 0 :  reset(); loadMainMap(); break;
-        case 1 :  unload(); loadMainIcons(); break;
-        case 2 :  resetDungeonFloor(); loadedDungeon[activeFloor - 1].load(); break;
-        case 3 :  unload(); loadedDungeon.load(); break;
+        case 0 : reset(); loadMainMap(); break;
+        case 1 : unload(); loadMainIcons(); break;
+        case 2 : resetDungeonFloor(); loadedDungeon[activeFloor - 1].load(); break;
+        case 3 : unload(); loadedDungeon.load(); break;
     }
 }
 function hideDetails() {
@@ -958,54 +1137,178 @@ function hideDetails() {
     
     map.off('click', hideDetails);
 }
-function showSettings() {
-    var box = document.getElementById('settings');
-    box.style.visibility = "visible";
-    box.style.width = "25%";
-    box.style.height = "100%";
+function showRightMenu(menuID, width) {
+    let menu = document.getElementById(menuID);
+    if (menuID == "tracker") {
+        let cpts = document.getElementsByClassName('tcpt');
+        for (let i = 0; i < cpts.length; ++i)
+            cpts[i].style.display = 'inline';
+
+    }
+    menu.style.visibility = "visible";
+    menu.style.width = width;
+    menu.style.height = "100%";
     document.getElementById("setIcon").style.display = "none";
     document.getElementById("trackerIcon").style.display = "none";
     document.getElementsByClassName("leaflet-popup-pane")[0].style.display = "none";
 }
-function hideSettings() {
-    var box = document.getElementById('settings'); 
-    box.style.width = "0%";
+function hideRightMenu(menuID) {
+    let menu = document.getElementById(menuID);
+    if (menuID == "tracker") {
+        let cpts = document.getElementsByClassName('tcpt');
+        for (let i = 0; i < cpts.length; ++i)
+            cpts[i].style.display = 'none';
+
+    }
+    menu.style.width = "0%";
     document.getElementById("setIcon").style.display = "inline";
     document.getElementById("trackerIcon").style.display = "inline";
     document.getElementsByClassName("leaflet-popup-pane")[0].style.display = "inline";
     setTimeout(function() {
-        box.style.height = "0%";
-        box.style.visibility = "hidden";       
-    }, 100);  
-}
-function showRightMenu(box, width) {
-    box.style.visibility = "visible";
-    box.style.width = width;
-    box.style.height = "100%";
-    document.getElementById("setIcon").style.display = "none";
-    document.getElementById("trackerIcon").style.display = "none";
-    document.getElementsByClassName("leaflet-popup-pane")[0].style.display = "none";
-}
-function hideRightMenu(box) {
-    box.style.width = "0%";
-    document.getElementById("setIcon").style.display = "inline";
-    document.getElementById("trackerIcon").style.display = "inline";
-    document.getElementsByClassName("leaflet-popup-pane")[0].style.display = "inline";
-    setTimeout(function() {
-        box.style.height = "0%";
-        box.style.visibility = "hidden";       
+        menu.style.height = "0%";
+        menu.style.visibility = "hidden";  
     }, 100);  
 }
 function iconSet(cat, index) {
     if (settings[index].checked) {
-        activeMarkers.push(cat);
+        visibleCategories.push(cat);
         setFlag('settings', index, '1');
     }
     else {
-        let i = activeMarkers.indexOf(cat);
-        if (i > -1)
-            activeMarkers.splice(i, 1);   
+        removeFromArray(visibleCategories, cat);
         setFlag('settings', index, '0');
     }
     reloadIcons();
+}
+function increaseState(traElemIndex) {
+    let item = trackerItems[traElemIndex];
+    let prevState = item.state;
+    ++item.state;
+    if (item.state > item.max)
+        item.state = 0;
+    if (traElemIndex == 23 && item.state == 0)
+        ++item.state;
+    setTrackerFlag(traElemIndex, item.state);
+    updateObtainedItems(item, prevState);
+    updateTracker(item);
+}
+function decreaseState(traElemIndex) {
+    let item = trackerItems[traElemIndex];
+    let prevState = item.state;
+    --item.state;
+    if (item.state < 0)
+        item.state = item.max;
+    if (traElemIndex == 23 && item.state == 0)
+        item.state = item.max;
+    setTrackerFlag(traElemIndex, item.state);
+    updateObtainedItems(item, prevState);
+    updateTracker(item);
+}
+function setTrackerFlag(index, state) {
+    if (index == 25 || index == 26 || index == 28)
+        state = String.fromCharCode(state);
+    else 
+        state = state.toString();
+    setFlag('tracker', index, state);
+}
+function updateObtainedItems(item, prevState) {
+    if (item.items == undefined)
+        return;
+    if (item.type == 0 || item.items.length == undefined) {
+        if (item.state == 0) // Remove on unmark
+            removeFromArray(obtainedItems, item.items);
+        else if (prevState == 0) // Put on mark from start
+            obtainedItems.push(item.items)
+    }
+    else {
+        if (item.state == 0) {
+            if (item.type == 1) //
+                removeFromArray(obtainedItems, item.items[prevState - 1]);
+            else {
+                for(let i = 0; i < item.items.length; ++i) // Reset from max to 0
+                    removeFromArray(obtainedItems, item.items[i]);  
+            }
+        }
+        else {
+            if (item.type == 1 || prevState > item.state) {
+                removeFromArray(obtainedItems, item.items[prevState - 1]);
+            }
+            if (prevState < item.state)
+                obtainedItems.push(item.items[item.state - 1]);
+            if (item.type == 2 && item.state == item.max && prevState == 0) { // Add all from 0 to max
+                for(let i = 0; i < item.items.length - 1; ++i)
+                   obtainedItems.push(item.items[i]);  
+            }
+            if (item.items[0].name == 'Wallet') { // Handle Wallets since you start with 1
+                if (prevState == 1 && item.state == 3) // From 1 to 3
+                    obtainedItems.push(bigWallet);
+                else if (prevState == 3 && item.state == 1) { //Reset from 3 to 1
+                    removeFromArray(obtainedItems, bigWallet);
+                    removeFromArray(obtainedItems, giantWallet);
+                }
+            }
+        }
+    }
+    console.log(obtainedItems);
+    if(getFlag('settings', 14))
+        reloadIcons();
+}
+function updateTracker(item) {        
+    if (item.state == 0) {
+        item.elem.style.filter = "brightness(50%)"; // Unmark item     
+        if (item.type == 1 || item.type == 2) { //Change item to base
+            updateTrackerImg(item);
+        }
+        else if (item.type == 3) {
+            item.elem.childNodes[5].style.visibility = 'hidden'; //Hide counter
+            if (item.max > 1) // Don't change color if item max is 1
+                item.elem.childNodes[5].style.color = "#c0c0c0";
+            if (item.max > 9) // Change width to 1 digit if max is 2 digits
+                item.elem.childNodes[5].style.width = "1.25vw";
+        }
+    }
+    else {
+        if (item.state == 1 || item.state == item.max) //Mark item
+            item.elem.style.filter = "none"; 
+        if (item.type == 1 || item.type == 2) {  //Change item
+            updateTrackerImg(item);
+        }              
+        else if (item.type == 3) {
+            item.elem.childNodes[5].innerHTML = item.state; // Update Counter
+            switch (item.state) {
+                case 1: item.elem.childNodes[5].style.visibility = 'visible'; break; //Show Counter
+                case 9:  item.elem.childNodes[5].style.width = "1.25vw"; break; // Change width for 1 digit
+                case 10: item.elem.childNodes[5].style.width = "1.75vw"; break; // Change width for 2 digits
+                case item.max - 1: item.elem.childNodes[5].style.color = "#c0c0c0"; break; // Change color off green
+                case item.max:
+                    item.elem.childNodes[5].style.visibility = 'visible'; //Show counter
+                    item.elem.childNodes[5].style.color = "#50C878"; // Change color to green
+                    if (item.max > 9) // Change width to 2 digits if max is 2 digits
+                        item.elem.childNodes[5].style.width = "1.75vw";
+                    break;
+            }  
+        }
+    }   
+}
+function updateTrackerImg(item) {
+    let imgSrc = item.elem.childNodes[3].src;
+    item.elem.childNodes[3].src = imgSrc.slice(0, -5) + 
+        (item.state == 0 ? 0 : item.state - 1) + imgSrc.slice(-4); 
+}
+
+function removeFromArray(array, item) {
+    let i = array.indexOf(item);
+        if (i > -1)
+            array.splice(i, 1);   
+}
+function updateMaxBounds(bounds) {
+    L.setOptions(map, {maxBounds: L.latLngBounds(bounds)});
+    map.on('moveend', map._panInsideMaxBounds);
+    var center = map.getCenter(),
+		    newCenter = map._limitCenter(center, map._zoom, L.latLngBounds(bounds));
+    map.setView(newCenter);
+    if (!center.equals(newCenter)) {
+        map.panTo(newCenter, {animate: false});
+    }
+
 }
