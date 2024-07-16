@@ -232,7 +232,7 @@ body {
     background-color: #2c2c2c;
 }
 #setIcon {
-    width: 1.875vw;
+    width: 1.875vmax;
 }
 #trackerIcon {
     width: 2.5vmax;
