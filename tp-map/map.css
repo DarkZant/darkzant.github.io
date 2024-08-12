@@ -2,9 +2,11 @@
 .leaflet-control-attribution.leaflet-control {
     display: none;
 }
+/* .leaflet-marker-icon {
+    
+} */
 .leaflet-marker-icon:hover {
-    transition: filter 0.15s;
-    filter: brightness(130%);
+    filter: brightness(130%) !important;
 }
 .leaflet-div-icon {
     background: none !important;
@@ -76,8 +78,9 @@ body {
 }
 #dc {    
     width: 15vw;
+    max-height: 100%;
     margin-top: 20%;
-    margin-left: 3.5vw;
+    margin-left: 2vw;
     display: flex;
     flex-direction: column;
     cursor: pointer;
@@ -87,8 +90,56 @@ body {
 }
 .F:hover {
     filter: brightness(225%) !important;
-    width: 105% !important;
-    margin-left: -2% !important;
+    width: 15.75vw !important;
+    margin-left: -0.5vw !important;
+}
+/* Top right menu icons */
+#menuicons {
+    position: absolute;
+    display: inline;
+    text-align: right;
+    line-height: 0.812vh;
+    top: 0;
+    right: 0;
+    z-index: 1000;
+}
+.menuicon {
+    display: flex;
+    column-gap: 7px;
+    justify-content: right;
+}
+.menuiconimg {
+    width: 1.875vmax;
+    border-style: solid;
+    border-width: 2%;
+    border-color: #38352e;
+    border-radius: 3px;
+    padding: 0.4vmax;
+    cursor: pointer;
+}
+.menuiconimg:hover {
+    background-color: #2c2c2c;
+}
+#trackerIcon {
+    padding: 0.78vmax 0.4vmax;
+}
+.tt {
+    margin: 0;
+    background-color: #38352e;
+    padding: 1.5vh 0.4vw;
+    border-radius: 2px;
+    opacity: 0%;
+    visibility: hidden;
+    color: #c0c0c0;
+    height: 50%;
+    align-self: center;
+    font-size: 2vmin;
+    transition: opacity 0.2s;
+}
+#setTT:has(+ #setIcon:hover),  #trackerTT:has(+ #trackerIcon:hover),
+#contTT:has(+ #contIcon:hover) {
+    visibility: visible;
+    opacity: 100%;
 }
 /* General menus */
 .menu {
@@ -101,11 +152,12 @@ body {
     color: #c0c0c0;
     border-radius: 8px;
     transition: width 0.1s;
+    overflow-y: scroll; 
 }
 .menuX {
-    position: absolute;
+    position: fixed;
     top: 0;
-    right: 0.1vw;
+    right: 0.5vw;
     display: flex;
     align-items: center;
     padding: 0;
@@ -118,6 +170,32 @@ body {
 .menuX:hover {
     filter: brightness(75%);
 }
+@supports not selector(::-webkit-scrollbar) {
+    .menu {
+        scrollbar-width: thin;
+        scrollbar-color: #757575 rgb(56, 53, 46, 0.85); 
+    }
+}
+@supports selector(::-webkit-scrollbar) {
+    .menu::-webkit-scrollbar {
+        width: 0.6vw;
+    }
+    .menu::-webkit-scrollbar-track {
+        background-color: transparent;
+        margin-block: 1vh;
+        border-radius: 4px;
+      }
+    .menu::-webkit-scrollbar-thumb {
+        border-radius: 4px;
+        background-color: #757575;
+        border: 2px solid transparent;
+        background-clip: content-box; 
+    }
+    .menu::-webkit-scrollbar-thumb:hover {
+       background-color: #8a8a8a;
+    }
+}
+
 /* Check details menu */
 #check {
     position: absolute;
@@ -125,7 +203,7 @@ body {
     left: 0;
 }
 #checkX {
-    right: 0.25vw;
+    left: 23.5vw;
 }
 #reqs, #van {  
     font-size: 1.3vmax;
@@ -213,55 +291,6 @@ body {
     font-size: 1.4vmax;
     font-style: italic;
 }
-
-/* Top right menu icons */
-#menuicons {
-    position: absolute;
-    display: inline;
-    text-align: right;
-    line-height: 0.812vh;
-    top: 0;
-    right: 0;
-    z-index: 1000;
-}
-.menuicon {
-    display: flex;
-    column-gap: 7px;
-    justify-content: right;
-}
-.menuiconimg {
-    width: 1.875vmax;
-    border-style: solid;
-    border-width: 2%;
-    border-color: #38352e;
-    border-radius: 3px;
-    padding: 0.4vmax;
-    cursor: pointer;
-}
-.menuiconimg:hover {
-    background-color: #2c2c2c;
-}
-#trackerIcon {
-    padding: 0.73vmax 0.4vmax;
-}
-.tt {
-    margin: 0;
-    background-color: #38352e;
-    padding: 1.5vh 0.4vw;
-    border-radius: 2px;
-    opacity: 0%;
-    visibility: hidden;
-    color: #c0c0c0;
-    height: 50%;
-    align-self: center;
-    font-size: 2vmin;
-    transition: opacity 0.2s;
-}
-#setTT:has(+ #setIcon:hover),  #trackerTT:has(+ #trackerIcon:hover),
-#contTT:has(+ #contIcon:hover) {
-    visibility: visible;
-    opacity: 100%;
-}
 /* Settings menu */
 #settings {
     position: absolute;
@@ -309,6 +338,8 @@ body {
 .bigSL {
     font-size: 1.05vmax;
     cursor: pointer;
+    line-break: strict;
+    width: 25vw;
 }
 .SC {
     height: 0.85vmax;
@@ -320,6 +351,10 @@ body {
 .SL {
     font-size: 0.9vmax;
     cursor: pointer;
+}
+.bigSL::after, .SL::after{
+    content: "\a";
+    white-space: pre;
 }
 /* Controls Menu */
 #controls {
@@ -355,13 +390,6 @@ body {
     align-items: center;
     flex-wrap: wrap;
     column-gap: 0.8vw;
-}
-#traX {
-    position: absolute;
-    display: flex;
-    align-items: center;
-    padding: 0;
-    height: 2.5vh;
 }
 .titem {
     position: relative;
@@ -437,7 +465,7 @@ body {
     text-align: center;
     font-size: 12px;
     background-color: rgb(56, 53, 46, 0.75);
-    border-radius: 20px;
+    border-radius: 100vw;
     padding: 1px 0px;
     color:#c0c0c0;
 }
@@ -446,11 +474,11 @@ body {
     top: 50%; 
     left: 50%;  
     transform: translate(-50%, -50%); 
-    width: 30px;
+    width: 35px;
     text-align: center;
     font-size: 20px;
     background-color: rgb(56, 53, 46, 0.9);
-    border-radius: 20px;
+    border-radius: 100vw;
     padding: 1px 0px;
     color:#c0c0c0;
 }

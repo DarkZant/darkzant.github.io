@@ -1,70 +1,71 @@
-//Flag functions
-
-function setFlag(cat, index, value) {
-    var flags = localStorage.getItem(cat);
-    flags = flags.substring(0, index) + value + flags.substring(index + 1);
-    localStorage.setItem(cat, flags);
-}
-
-function getFlag(cat, index) {
-    return localStorage.getItem(cat)[index] == '1';
-}
-function getFlagAsNumber(cat, index) {
-    return parseInt(localStorage.getItem(cat)[index]);
-}
-function getFlagAsCharCode(cat, index) {
-    return localStorage.getItem(cat)[index].charCodeAt(0);
-}
-
 //Classes
 //Leaflet Extended Classes
 var Check = L.Marker.extend({
-    initialize: function(latLng, icon, id, cat, index, van, reqs, info) {
-        this._latlng = L.latLng(latLng);
-        L.setOptions(this, {icon: icon, riseOnHover: true, keyboard: false});
-        this.id = id;
-        this.cat = cat;
-        this.index = index;
+    initialize: function(latLng, icon, su, van, reqs, info) {
+        this.latLng = L.latLng(latLng)
+        this._latlng = this.latLng;
+        L.setOptions(this, {icon: icon, riseOnHover: true, riseOffset: 2000, keyboard: false});
+        this.su = su;
+        this.index = su.assignIndex();
         this.van = van;
         this.reqs = reqs;
         this.info = info;
         this.on('contextmenu', this.setAsMarked);
         this.on('click', this.showDetails);
     },
-    set: function(val) {
-        setFlag(this.cat, this.index, val);
+    setFlag: function(value) {
+        this.su.setFlag(this.index, value);
     },
-    isSet: function() {
-        return getFlag(this.cat, this.index);
+    flagIsSet: function() {
+        return this.su.getFlag(this.index);
     },
-    isMarked: function() {
-        return this.isSet();
+    resetFlag: function() {
+        if (this.flagIsSet())
+            this.setFlag('0');
     },
     setAsMarked: function() {
-        this.setOpacity(0.7);
-        this.setZIndexOffset(-1000);
-        this.off('contextmenu', this.setAsMarked);
-        this.on('contextmenu', this.setAsUnmarked);
-        this.set('1');
+        this.setFlag('1');
+        this.showAsMarked();
     },
     setAsUnmarked: function() {
+        this.setFlag('0');
+        this.showAsUnmarked();
+    },
+    showAsMarked: function() {
+        this.setOpacity(0.7);
+        this.setZIndexOffset(-1000);
+        this._icon.style.filter = "brightness(60%)";
+        this.off('contextmenu', this.setAsMarked);
+        this.on('contextmenu', this.setAsUnmarked);
+    },
+    showAsUnmarked: function() {
         this.setOpacity(1);
         this.setZIndexOffset(0);
+        this._icon.style.filter = "brightness(100%)";
         this.off('contextmenu', this.setAsUnmarked);
         this.on('contextmenu', this.setAsMarked);
-        this.set('0');
     },
-    isShown: function() {
-        return this.categoryIsVisible() && (this.isAvailable() || !getFlag('settings', 15));
+    loadAsSubmap: function(newLatLng) {
+        this._latlng = newLatLng;
+        this.loadIcon();
     },
-    isNotObtained: function() {
-        return this.isShown() && !this.isSet();
+    resetPosition: function() {
+        this._latlng = this.latLng;
     },
     categoryIsVisible: function() {
-        return visibleCategories.includes(this.cat);
+        return visibleCategories.includes(this.su.name);
     },
-    isAvailable: function() {
-        if (!getFlag('settings', 14) || this.reqs == undefined)
+    isShown: function() {
+        return this.categoryIsVisible() && (this.hasRequirements() || !settingIsChecked('hideTrackerS'));
+    },
+    isShownAndNotSet: function() {
+        return this.isShown() && !this.flagIsSet();
+    },  
+    isCountable: function () {
+        return this.isShownAndNotSet();
+    },
+    hasRequirements: function() {
+        if (!settingIsChecked('trackerS') || this.reqs == undefined)
             return true;
         for (let i = 0; i < this.reqs.length; ++i) {
             if (this.reqs[i].length == undefined) {
@@ -85,13 +86,13 @@ var Check = L.Marker.extend({
         }
         return true;
     },
-    load: function() {
+    loadIcon: function() {
         if (!this.categoryIsVisible()) //If Check's Category isn't visible
-            return false;
-        let isNotAvailable = !this.isAvailable();
-        if (isNotAvailable && getFlag('settings', 15)) //Hide Checks Without Reqs
-                return false;
-        if (getFlag('settings', 12) && this.van != undefined) { //Show Chests as Base Content
+            return;
+        let noReqs = !this.hasRequirements();
+        if (noReqs && settingIsChecked('hideTrackerS')) //Hide Checks Without Reqs
+                return;
+        if (settingIsChecked('chestS') && this.van != undefined) { //Show Chests as Base Content
             let temp = this.options.icon;
             L.setOptions(this, {icon: this.van});
             this.addTo(map);
@@ -99,14 +100,14 @@ var Check = L.Marker.extend({
         } 
         else
             this.addTo(map);
-        if (isNotAvailable) { // Show Check as Non-Obtainable
-            this._icon.style.filter = 'grayscale(1) contrast(125%)';
+        if (noReqs) { // Show Check as Non-Obtainable
+            this._icon.style.filter += 'grayscale(1) contrast(125%)';
             this.setZIndexOffset(-500);
         }
-        if(this.isSet())
-            this.setAsMarked();
-        return true;
-       
+        if (this.flagIsSet())
+            this.showAsMarked();
+        else
+            this.showAsUnmarked();       
     },
     showDetails: function() {
         var box = document.getElementById('check');
@@ -150,42 +151,51 @@ var Check = L.Marker.extend({
 });
 
 var FakeCheck = Check.extend({
-    initialize: function(latLng, icon, index, reqs, info) {
-        this._latlng = L.latLng(latLng);
-        L.setOptions(this, {icon: icon, riseOnHover: true, keyboard: false});
-        this.index = index;
+    initialize: function(latLng, icon, su, reqs, info) {
+        this.latLng = L.latLng(latLng)
+        this._latlng = this.latLng;
+        L.setOptions(this, {icon: icon, riseOnHover: true, riseOffset: 2000, keyboard: false, zIndexOffset: -500});
+        this.su = su;
+        this.index = su.assignIndex();
         this.reqs = reqs;
         this.info = info;
-        this.cat = 'fake';
         this.on('contextmenu', this.setAsMarked);
         this.on('click', this.showDetails);
     },
-    isMarked: function() {
-        return true;
+    isShownAndNotSet: function() {
+        return this.isShown() && !this.flagIsSet();
     },
-    isShown: function() {
-        return false;
+    isCountable: function() {
+        return this.isShownAndNotSet() && settingIsChecked('flagscptS');
     }
 });
 
 var NonCheck = L.Marker.extend({
     initialize: function(latLng, icon, cat) {
-        this._latlng = L.latLng(latLng);
-        L.setOptions(this, {icon: icon, riseOnHover: true, keyboard: false});
+        this.latLng = L.latLng(latLng);
+        this._latlng = this.latLng;
+        L.setOptions(this, {icon: icon, riseOnHover: true, riseOffset: 2000, keyboard: false, zIndexOffset: -1100});
         this.cat = cat;
     },
-    load: function() {
-        return;
+    loadIcon: function() {
+        if (!this.isShown())
+            return false;
         this.addTo(map);
     },
-    isSet: function() {
+    setFlag: function() {
+        return;
+    },
+    flagIsSet: function() {
         return true;
     },
-    isMarked: function() {
-        return true;
+    resetFlag: function() {
+        return;
     },
     isShown: function() {
-        return false;
+        return visibleCategories.includes(this.cat);
+    },
+    isShownAndNotSet: function() {
+        return this.isShown();
     },
     setAsMarked: function() {
         return;
@@ -193,7 +203,10 @@ var NonCheck = L.Marker.extend({
     setAsUnmarked: function() {
         return;
     },
-    isNotObtained: function() {
+    isCountable: function() {
+        return this.isShown() && settingIsChecked('nflagscptS');
+    },
+    resetPosition: function() {
         return false;
     }
 });
@@ -201,7 +214,8 @@ var NonCheck = L.Marker.extend({
 var Submap = L.Marker.extend({
     initialize: function(latLng, icon, imageLink, imageSize, checks) {
         this._latlng = L.latLng(latLng);
-        L.setOptions(this, {icon: icon, riseOnHover: true});
+        L.setOptions(this, {icon: icon, riseOnHover: true, riseOffset: 2000,});
+        this.isSubmap = true;
         this.icon = icon;
         this.checks = checks;  
         if (imageSize[1] > 330) {
@@ -211,51 +225,57 @@ var Submap = L.Marker.extend({
         this.image = L.imageOverlay('Submaps/' + imageLink, 
             [[latLng[0] + imageSize[1], latLng[1] - imageSize[0]], [latLng[0] - imageSize[1], latLng[1] + imageSize[0]]]);
         this.on('click', this.load);
-        this.on('contextmenu', this.mark);
+        this.on('contextmenu', this.setAsMarked);
     }, 
-
     setAsMarked: function() {
-        this.setOpacity(0.7);
-        this.setZIndexOffset(-1000);
-        if (getFlag('settings', 13))
-            this.setIcon(this.icon);
-        this.off('contextmenu', this.mark);
-        this.on('contextmenu', this.unmark);
+        this.setAllShownFlags('1');
+        this.showAsMarked();
     },
     setAsUnmarked: function() {
+        this.setAllShownFlags('0');
+        this.showAsUnmarked();
+    },
+    showAsMarked: function() {
+        this.setOpacity(0.7);
+        this.setZIndexOffset(-1000);
+        if (settingIsChecked('subCounterS'))
+            this.setIcon(this.icon);
+        this._icon.style.filter = "brightness(60%)";
+        this.off('contextmenu', this.setAsMarked);
+        this.on('contextmenu', this.setAsUnmarked);
+    },
+    showAsUnmarked: function() {
         this.setOpacity(1);
         this.setZIndexOffset(0);
-        if (getFlag('settings', 13))
-            this.showCounter();
-        this.off('contextmenu', this.unmark);
-        this.on('contextmenu', this.mark);
+        this._icon.style.filter = "brightness(100%)";
+        if (settingIsChecked('subCounterS') && this.getCountableChecksAmount() > 0)
+            this.loadCounterIcon();
+        this.off('contextmenu', this.setAsUnmarked);
+        this.on('contextmenu', this.setAsMarked);
     },
-    mark: function() {        
+    resetAllFlags: function() {
+        for (let i = 0; i < this.checks.length; ++i) 
+                this.checks[i].resetFlag();
+    },
+    setAllShownFlags: function(val) {        
         for (let i = 0; i < this.checks.length; ++i) {
             if (this.checks[i].isShown())
-                this.checks[i].setAsMarked();
+                this.checks[i].setFlag(val);
         }
-        this.setAsMarked();
     },
-    unmark: function() {     
+    allShownChecksAreSet: function() {
         for (let i = 0; i < this.checks.length; ++i) {
-            if (this.checks[i].isShown())
-                this.checks[i].setAsUnmarked();
-        }
-        this.setAsUnmarked();
-    },
-
-    isMarked: function() {
-        for (let i = 0; i < this.checks.length; ++i) {
-            if (!this.checks[i].isMarked()) {
-                return false;
-            }              
+            if (this.checks[i].isShownAndNotSet())
+                return false;       
         }
         return true;
     },
-
     loadIcon: function() {
-        if (!(getFlag('settings', 11))) {
+        if (settingIsChecked('1checksubS') && this.checks.length == 1) {
+            this.checks[0].loadAsSubmap(this._latlng);
+            return;
+        }
+        if (!settingIsChecked('emptysubS')) { // Hide if empty
             let notVisible = true;
             for (let i = 0; i < this.checks.length; ++i) {
                 if (this.checks[i].isShown()) {
@@ -266,42 +286,47 @@ var Submap = L.Marker.extend({
             if (notVisible)
                 return;     
         }       
-        if (this.isMarked()) {
-            this.addTo(map);
-            this.setAsMarked(); 
-        }         
-        else if (getFlag('settings', 13)) {
-           this.showCounter();
-           this.setAsUnmarked();
-        } 
-        else {
-            this.addTo(map);
-            this.setAsUnmarked();
-        }
+        this.addIcon();
     },       
-
+    addIcon: function() {
+        this.addTo(map);
+        if (this.allShownChecksAreSet())
+            this.showAsMarked();        
+        else 
+            this.showAsUnmarked();
+    },
     load: function() {
-        loadSubmap(this._latlng);
+        mapState = 3;
+        this.prepareMap();
         loadedDungeon = this;
         this.image.addTo(map);
         this.loadChecks();      
     },
     loadChecks: function() {
-        for(let i = 0; i < this.checks.length; ++i) 
-            this.checks[i].load();
+        for(let i = 0; i < this.checks.length; ++i) {
+            this.checks[i].resetPosition();
+            this.checks[i].loadIcon();
+        }          
     },
-    showCounter: function() {
+    prepareMap: function() {
+        map.setView(this._latlng, 0);     
+        map.dragging.disable();
+        TL.setOpacity(0.2);
+        removeAllLayersExceptTL();
+        map.on('zoomend', exitSubmap);
+    },    
+    loadCounterIcon: function() {
         this.remove();
         let temp = this.icon;
-        L.setOptions(this, {icon: getCounterIcon(this.icon, this.getCounterAmount())});
+        L.setOptions(this, {icon: getCounterIcon(this.icon, this.getCountableChecksAmount())});
         this.addTo(map);
         L.setOptions(this, {icon: temp});
+        return true;
     },
-    getCounterAmount: function() {
+    getCountableChecksAmount: function() {
         let cpt = 0;
-        for(let i = 0; i < this.checks.length; ++i) {
-            cpt += this.checks[i].isNotObtained() ? 1 : 0;
-        }
+        for(let i = 0; i < this.checks.length; ++i) 
+            cpt += this.checks[i].isCountable() ? 1 : 0;
         return cpt;
     }
 }); 
@@ -320,7 +345,7 @@ var DungeonFloor = L.ImageOverlay.extend({
         let nwp = this._bounds.getNorthWest();
         let sep = this._bounds.getSouthEast();
         setTimeout(function() {
-            map.setMaxBounds(L.latLngBounds([[nwp.lat + 300, nwp.lng - 500], [sep.lat - 300, sep.lng + 300]]));
+            map.setMaxBounds(L.latLngBounds([[nwp.lat + 300, nwp.lng - 1500], [sep.lat - 300, sep.lng + 300]]));
         }, 200);        
     },
     hasShownChecks: function () {
@@ -334,33 +359,50 @@ var DungeonFloor = L.ImageOverlay.extend({
         return visible; 
     },
     loadChecks : function() {
-        for(let i = 0; i < this.checks.length; ++i) 
-            this.checks[i].load();
+        for(let i = 0; i < this.checks.length; ++i) {
+            this.checks[i].resetPosition();
+            this.checks[i].loadIcon();
+        }          
     },
-    set: function() {
+    resetAllFlags: function() {
+        for (let i = 0; i < this.checks.length; ++i) 
+                this.checks[i].resetFlag();
+    },
+    setAllShownFlags: function(val) {
+        for (let i = 0; i < this.checks.length; ++i) {
+            if (this.checks[i].isShown())
+                this.checks[i].setFlag(val);
+        } 
+    },
+    setAsMarked: function() {
+        this.setAllShownFlags('1');   
+    },
+    setAsUnmarked: function() {
+        this.setAllShownFlags('0');
+    },
+    setAndShowAsMarked: function() {
         for (let i = 0; i < this.checks.length; ++i) {
             if (this.checks[i].isShown())
                 this.checks[i].setAsMarked();
-        }         
+        } 
     },
-    unset: function() {
+    setAndShowAsUnmarked: function() {
         for (let i = 0; i < this.checks.length; ++i) {
             if (this.checks[i].isShown())
                 this.checks[i].setAsUnmarked();
-        }
+        } 
     },
-    isMarked: function() {
+    allShownChecksAreSet: function() {
         for (let i = 0; i < this.checks.length; ++i) {
-            if (!this.checks[i].isMarked()) 
+            if (this.checks[i].isShownAndNotSet()) 
                 return false;               
         }
         return true;
     },
-    getCounterAmount: function() {
+    getCountableChecksAmount: function() {
         let cpt = 0;
-        for(let i = 0; i < this.checks.length; ++i) {
-            cpt += this.checks[i].isNotObtained() ? 1 : 0;
-        }
+        for(let i = 0; i < this.checks.length; ++i) 
+            cpt += this.checks[i].isCountable() ? 1 : 0;
         return cpt;
     }
 
@@ -368,7 +410,7 @@ var DungeonFloor = L.ImageOverlay.extend({
 
 var Dungeon = Submap.extend({
     initialize: function(latLngTile, latLngMain, icon, name, floors) {
-        L.setOptions(this, {icon: icon, riseOnHover: true});
+        L.setOptions(this, {icon: icon, riseOnHover: true, riseOffset: 2000, zIndexOffset: 2000});
         this.latLngTile = L.latLng(latLngTile);
         this.latLngMain = L.latLng(latLngMain);;
         this.icon = icon;
@@ -377,36 +419,36 @@ var Dungeon = Submap.extend({
                 floors[i][0][0] = 1350 / floors[i][0][1] * floors[i][0][0];
                 floors[i][0][1] = 1350;
             }
+            if (floors[i][0][0] > 2300) {
+                floors[i][0][1] = 2300 / floors[i][0][0] * floors[i][0][1];
+                floors[i][0][0] = 2300;
+            }
             floors[i] = new DungeonFloor('Dungeons/' + name + '/' + (i + 1) + 'F.png', 
                 [[-4913 + floors[i][0][1], 4258 - floors[i][0][0]], [-4913 - floors[i][0][1], 4258 + floors[i][0][0]]],
                 floors[i][1]);
         }
+        this.name = name;
         this.floors = floors;   
         this.on('click', this.load);
-        this.on('contextmenu', this.mark);
+        this.on('contextmenu', this.setAsMarked);
     }, 
-    mark: function() {
-        for (let i = 0; i < this.floors.length; ++i) {
-            this.floors[i].set();
-        }
-        this.setAsMarked();
+    resetAllFlags: function() {
+        for (let i = 0; i < this.floors.length; ++i) 
+                this.floors[i].resetAllFlags();
     },
-    unmark: function() {
-        for (let i = 0; i < this.floors.length; ++i) {
-            this.floors[i].unset();
-        }
-        this.setAsUnmarked();
+    setAllShownFlags: function(value) {
+        for(let i = 0; i < this.floors.length; ++i)
+            this.floors[i].setAllShownFlags(value);
     },
-
-    isMarked: function() {
+    allShownChecksAreSet: function() {
         for (let i = 0; i < this.floors.length; ++i) {
-            if (!this.floors[i].isMarked()) 
+            if (!this.floors[i].allShownChecksAreSet()) 
                 return false;                     
         }
         return true;
     },
     loadIcon: function() {
-        if (!getFlag('settings', 11)) {
+        if (!settingIsChecked('emptysubS')) { // Hide if empty
             let notVisible = true;
             for (let i = 0; i < this.floors.length; ++i) {
                 if (this.floors[i].hasShownChecks()) {
@@ -421,18 +463,9 @@ var Dungeon = Submap.extend({
             this._latlng = this.latLngMain;
         else 
             this._latlng = this.latLngTile;
-        if (this.isMarked()) {
-            this.addTo(map);
-            this.setAsMarked(); 
-        }         
-        else if (getFlag('settings', 13)) {
-            this.showCounter();
-            this.setAsUnmarked();
-        } 
-        else {
-            this.addTo(map);
-            this.setAsUnmarked();
-        }   
+
+        this.addIcon();
+        this.setZIndexOffset(500);
     },
     load: function() { 
         if (mapState == 0) {
@@ -440,38 +473,78 @@ var Dungeon = Submap.extend({
             document.getElementById('made').style.display = 'none';
             map.off('zoomend');
             map.dragging.enable();         
-            map.on('zoomend', dezoomToMainMap);  
+            map.on('zoomend', loadImageMap);  
         }
         loadedDungeon = this.floors;
         document.getElementById('dun').style.display = 'inline'
-        dn.src = this.floors[0]._url.slice(0, -6) + "Name.png";
+        let dn = document.getElementById("dn");
+        dn.src = "Dungeons/" + this.name + "/Name.png";
         dn.style.display = 'flex';
-        this.floors[0].load();
         mapState = 2;
         removeAllLayers();
         map.setView([-4913, 4258], -2);
         window.addEventListener('keydown', dungeonControls);
         map.on('zoomend', exitDungeon);
-        resetFloorButtons();
-        for(let i = 0; i < this.floors.length; ++i) {
-            let floor = document.getElementById('F' + (i + 1));
-            floor.style.display = 'flex';
-        }
-        document.getElementById('F1').click();
+        floorOffset = 3;
+        if (this.name == 'Lakebed Temple' || this.name == "Arbiter's Grounds") 
+           floorOffset = 1;
+        else if (this.name == 'City in the Sky')
+            floorOffset = 0;
+        for(let i = 0; i <= this.floors.length - 1; ++i)
+            this.setupFloorButton(i, floorOffset);
+        activeFloor = 3 - floorOffset;
+        document.getElementById('F3').click();
     },
-    getCounterAmount: function() {
+    getCountableChecksAmount: function() {
         let cpt = 0;
-        for(let i = 0; i < this.floors.length; ++i) {
-            cpt += this.floors[i].getCounterAmount();
-        }
+        for(let i = 0; i < this.floors.length; ++i)
+            cpt += this.floors[i].getCountableChecksAmount();
         return cpt;
+    },
+    getAmountOfChecks: function() {
+        let cpt = 0;
+        for(let i = 0; i < this.floors.length; ++i)
+            cpt += this.floors[i].checks.length;
+        return cpt; 
+    },
+    setupFloorButton: function(floorIndex) {
+        let floor = document.getElementById('F' + (floorIndex + floorOffset));
+        floor.style.display = 'flex';
+        floor.addEventListener("click", function () {
+            mapState == 2 ? removeAllLayers() : removeAllLayersExceptTL();
+            resetActiveFloorButton();
+            floor.style.filter = 'brightness(200%)';
+            floor.style.width = "15.4vw";
+            floor.style.marginLeft = "-0.4vw";
+            activeFloor = floorIndex;
+            loadedDungeon[floorIndex].load();             
+        });
+        floor.addEventListener('contextmenu', function() {
+            if (loadedDungeon[floorIndex].allShownChecksAreSet())
+                loadedDungeon[floorIndex].setAndShowAsUnmarked();
+            else
+                loadedDungeon[floorIndex].setAndShowAsMarked();
+        });
+        floor.addEventListener('mouseover', function() {
+            if (activeFloor == floorIndex) 
+                return;
+            mapState == 2 ? removeAllLayers() : removeAllLayersExceptTL();
+            loadedDungeon[floorIndex].load();  
+        });
+        floor.addEventListener('mouseout', function() {
+            if (activeFloor == floorIndex || mapState == 1) 
+                return;
+            mapState == 2 ? removeAllLayers() : removeAllLayersExceptTL();
+            loadedDungeon[activeFloor].load();
+        });
     }
 });
 
 var FlooredSubmap = Dungeon.extend({
-    initialize: function(latLng, icon, img, floors) {
+    initialize: function(latLng, icon, img, floors, floorOffset) {
         this._latlng = L.latLng(latLng);
-        L.setOptions(this, {icon: icon, riseOnHover: true});
+        L.setOptions(this, {icon: icon, riseOnHover: true, riseOffset: 2000});
+        this.isSubmap = true;
         this.icon = icon;
         for (let i = 0; i < floors.length; ++i) {
             if (floors[i][0][1] > 330) {
@@ -483,11 +556,20 @@ var FlooredSubmap = Dungeon.extend({
             floors[i][1]);
         }
         this.floors = floors;
+        this.floorOffset = floorOffset == undefined ? 3 : floorOffset;
         this.on('click', this.load);
-        this.on('contextmenu', this.mark);
+        this.on('contextmenu', this.setAsMarked);
     }, 
     loadIcon: function() {
-        if (!getFlag('settings', 11)) {
+        if (settingIsChecked('1checksubS') && this.getAmountOfChecks() == 1) { // Show as singular check
+            for (let i = 0; i < this.floors.length; ++i) {
+                if (this.floors[i].checks.length == 1) {
+                    this.floors[i].checks[0].loadAsSubmap(this._latlng);
+                    return;
+                }
+            }
+        }
+        if (!settingIsChecked('emptysubS')) { // Hide if empty
             let notVisible = true;
             for (let i = 0; i < this.floors.length; ++i) {
                 if (this.floors[i].hasShownChecks()) {
@@ -498,50 +580,77 @@ var FlooredSubmap = Dungeon.extend({
             if (notVisible)
                 return;     
         }
-        if (this.isMarked()) {
-            this.addTo(map);
-            this.setAsMarked(); 
-        }         
-        else if (getFlag('settings', 13)) {
-            this.showCounter();
-            this.setAsUnmarked();
-        } 
-        else {
-            this.addTo(map);
-            this.setAsUnmarked();
-        }   
+        this.addIcon();
     },
     load: function() {
-        loadSubmap(this._latlng);
         mapState = 4;
+        this.prepareMap();
         loadedDungeon = this.floors;  
         document.getElementById('dun').style.display = 'inline'
-        resetFloorButtons();
-        for(let i = 0; i < this.floors.length; ++i) {
-            let floor = document.getElementById('F' + (i + 1));
-            floor.style.display = 'flex';
-        }
-        document.getElementById('F1').click();
         window.addEventListener('keydown', dungeonControls);
+        floorOffset = this.floorOffset;
+        for(let i = 0; i <= this.floors.length - 1; ++i)
+            this.setupFloorButton(i, floorOffset);
+        activeFloor = 3 - floorOffset;
+        document.getElementById('F3').click();
     },
 });
 
 
 // Simple Classes
+class StorageUnit {
+    constructor(name, defaultConfig) {
+        this.name = name;
+        this.defaultConfig = defaultConfig;
+        this.total = 0;
+    }
+    getLength() {
+        return this.defaultConfig.length;
+    }
+    resetFlags() {
+        localStorage.setItem(this.name, this.defaultConfig);
+    }
+    getAllFlags() {
+        return localStorage.getItem(this.name);
+    }
+    getFlag(index) {
+        return this.getAllFlags()[index] == '1';
+    }
+    getFlagAsNumber(index) {
+        return parseInt(this.getAllFlags()[index]);
+    }
+    getFlagAsCharCode(index) {
+        return this.getAllFlags()[index].charCodeAt(0);
+    }
+    setFlag(index, value) {
+        var flags = this.getAllFlags();
+        flags = flags.substring(0, index) + value + flags.substring(index + 1);
+        localStorage.setItem(this.name, flags);
+    }
+    assignIndex() {
+        return this.total++;
+    }
+    checkIfInitialized() {
+        let flags = this.getAllFlags();
+        if (flags == null || flags.length != this.getLength())
+            this.resetFlags();
+    }
+}
+
 class Province {
-    constructor(polyPoints, isCastle, counterPos, checkIds) {
+    constructor(polyPoints, isCastle, counterPos, markers) {
         this.poly = L.polygon(polyPoints, { fillColor: '#6e5b1e', fillOpacity: 0, opacity: 0});
         this.isCastle = isCastle;
-        this.checkIds = checkIds;
+        this.markers = markers;
         this.counterPos = counterPos;
         this.poly.on('mouseover', this.highlight);
         this.poly.on('mouseout', this.unhighlight);
         if (this.isCastle)
             this.poly.on('click', function() { 
-                submaps[submaps.length - 1].load();
+                dungeons[dungeons.length - 1].load();
             });
         else
-            this.poly.on('click', zoomOnClick);
+            this.poly.on('click', this.zoomToTilemap);
     }
     highlight() {
         this.setStyle({ fillOpacity: 0.5 });
@@ -552,23 +661,37 @@ class Province {
     load() {
         this.poly.addTo(map);
         this.poly.setStyle({ fillOpacity: 0 });
-        if (getFlag('settings', 13)) {
+        if (settingIsChecked('subCounterS')) {
             L.marker(this.counterPos, {
-                icon: L.divIcon({ html: '<div class="sccp">' + this.getCounterAmount() + '</div>'}),
+                icon: L.divIcon({ html: '<div class="sccp">' + this.getCountableChecksAmount() + '</div>'}),
                 interactive: false
             }).addTo(map);
         }
     }
-    getCounterAmount() {
-        if (this.isCastle) 
-            return submaps[submaps.length - 1].getCounterAmount();
-        let cpt = 0;
-        for(let i = 0; i < this.checkIds.length; ++i) {
-            let id = this.checkIds[i];
-            if (id < 500)
-                cpt += checks[id].isNotObtained() ? 1 : 0;
+    loadIcons() {
+        for(let i = 0; i < this.markers.length; ++i)
+            this.markers[i].loadIcon();
+    }
+    resetAllFlags() {
+        for(let i = 0; i < this.markers.length; ++i) {
+            if (this.markers[i].isSubmap) 
+                this.markers[i].resetAllFlags();
             else 
-                cpt += submaps[id - 500].getCounterAmount();
+                this.markers[i].resetFlag();
+        }
+    }
+    zoomToTilemap(e) {
+        map.setView(L.latLng(e.latlng.lat, e.latlng.lng), -2);  
+    }
+    getCountableChecksAmount() {
+        if (this.isCastle) 
+            return dungeons[dungeons.length - 1].getCountableChecksAmount();
+        let cpt = 0;
+        for(let i = 0; i < this.markers.length; ++i) {
+            if (this.markers[i].isSubmap) 
+                cpt += this.markers[i].getCountableChecksAmount();
+            else 
+                cpt += this.markers[i].isCountable() ? 1 : 0;
         }
         return cpt;
     }
@@ -591,19 +714,36 @@ class Item {
 }
 
 function createIcon(img, width, height, name) {
-    return L.icon({iconUrl: 'Icons/' + img + '.png', iconSize: [width, height],
+    let maxSize = 55;
+    if (width >= height) {
+        height = height / width * maxSize;
+        width = maxSize;
+    }
+    else {
+        width = width / height * maxSize;
+        height = maxSize;
+    }
+     return L.icon({iconUrl: 'Icons/' + img + '.png', iconSize: [width, height],
                    className: name}); 
 }
 function bI(img, isMale) { // Create bug icon
+    if (isMale == undefined)
+        return L.icon({iconUrl: 'Icons/' + img + '.png',iconSize: [55, 55]});
     return L.icon({iconUrl: 'Icons/' + img + (isMale ? 'M' : 'F') + '.png',
         iconSize: [55, 55], className: (isMale ? '♂' : '♀') + ' ' + img});
 }
+function qI(icon, quantity) { // Create item icon with quantity
+    icon.options.className = icon.options.iconUrl.slice(6, -4) + '&nbsp × &nbsp' + quantity;
+    return icon;
+}
 //Icons
 //General Map
-var cI = L.icon({iconUrl: 'Icons/Chest.png', iconSize: [60, 52]}); 
-var sCI = L.icon({iconUrl: 'Icons/ChestSmall.png', iconSize: [60, 52]});
+var cI = L.icon({iconUrl: 'Icons/Chest.png', iconSize: [55, 47.7]}); 
+var sCI = L.icon({iconUrl: 'Icons/ChestSmall.png', iconSize: [55, 47.7]});
 var bCI = createIcon('ChestBoss', 55, 47.7);
+var howlStoI = createIcon('HowlingStone', 36.2, 55);
 var golWolfI = createIcon('Golden Wolf', 50.1, 55);
+var rupRockI = createIcon('RupeeRock', 55, 42.4);
 var grottoI = L.icon({iconUrl: 'Icons/Grotto.png', iconSize: [45, 45]});
 var orDoorI = L.icon({iconUrl: 'Icons/Ordon Door.png', iconSize: [43.7, 55]});
 var caveEI = L.icon({iconUrl: 'Icons/CaveEntrance.png', iconSize: [55, 46.2]});
@@ -613,14 +753,18 @@ var castleI = L.icon({iconUrl: 'Icons/Castle.png', iconSize: [49.3, 55]});
 //Non Checks
 var horseGI = L.icon({iconUrl: 'Icons/Horse Grass.png', iconSize: [45.7, 55]});
 var hawkGI = L.icon({iconUrl: 'Icons/Hawk Grass.png', iconSize: [31.3, 55]});
-var fairyI = createIcon('FairyBottle', 34.3, 55);
+var fairyI = createIcon('BottleFairy', 34.3, 55);
+var beeI = createIcon('BottleBee', 34.3, 55);
 
 //Obtainables
 var hPI = L.icon({iconUrl:'Icons/Heart Piece.png', iconSize: [55, 43]});
 var hCI = L.icon({iconUrl:'Icons/Heart Container.png', iconSize: [55, 43]});
-var soulI = L.icon({iconUrl: 'Icons/Soul.png', iconSize: [50, 48]});
+var poeSoulI = createIcon('Soul0', 118, 119);
 var smaKeyI = L.icon({iconUrl: 'Icons/Small Key.png', iconSize: [28.9, 55]});
 var bossKeyI = createIcon('Boss Key', 32.5, 55);
+var gBK0I = createIcon('GBK0', 125, 88);
+var gBK1I = createIcon('GBK1', 100, 107);
+var gBK2I = createIcon('GBK2', 118, 106);
 var mapI = L.icon({iconUrl: 'Icons/Dungeon Map.png', iconSize: [50, 42]});
 var compaI = createIcon('Compass', 55, 55);
 var fusShaI = createIcon('Fused Shadow0', 51.9, 55);
@@ -632,10 +776,22 @@ var rRI = L.icon({iconUrl: 'Icons/Red Rupee.png', iconSize: [35, 55]});
 var pRI = L.icon({iconUrl: 'Icons/Purple Rupee.png', iconSize: [35, 55]}); 
 var oRI = L.icon({iconUrl: 'Icons/Orange Rupee.png', iconSize: [35, 55]}); 
 var sRI = L.icon({iconUrl: 'Icons/Silver Rupee.png', iconSize: [35, 55]}); 
+var arrowsI = createIcon('Arrows', 250, 389);
+var bombsI = createIcon('Bombs', 332, 382)
+var watBomI = createIcon('Water Bombs', 1, 1);
 //Item Icons
 var wooSwoI = createIcon('Sword0', 35.7, 55, 'Wooden Sword');
 var ordSwoI = createIcon('Sword1', 35.5, 55);
+var masSwoI = createIcon('Sword2', 79, 127);
 var ordShieI = createIcon('Shield0', 49.3, 55);
+var woodShieI = createIcon('Shield1', 41.9, 55);
+var hylShieI = createIcon('Shield2', 44.3, 55);
+var hawkeyeI = createIcon('Hawkeye', 55, 49.4);
+var redPotI = createIcon('PotionRed', 34.6, 55);
+var zoraArmI = createIcon('Zora Armor', 128, 150);
+var magArmI = createIcon('Magic Armor', 125, 149);
+var bigQuivI = createIcon('Quiver1', 128, 128);
+var giaQuivI = createIcon('Quiver2', 128, 128);
 var bottleI = L.icon({iconUrl: 'Icons/Bottle0.png', iconSize: [33.9, 55]});
 var gBI = L.icon({iconUrl: 'Icons/Gale Boomerang.png', iconSize: [36, 60]});
 var bACI = L.icon({iconUrl: 'Icons/Ball And Chain.png', iconSize: [60, 56]});
@@ -651,8 +807,9 @@ var slI = L.icon({iconUrl: 'Icons/Slingshot.png', iconSize: [35.6, 55]});
 var laI = L.icon({iconUrl: 'Icons/Lantern.png', iconSize: [28.3, 55]});
 var gaboI = L.icon({iconUrl: 'Icons/Boomerang.png', iconSize: [27.5, 55]});
 var iBI = L.icon({iconUrl: 'Icons/Iron Boots.png', iconSize: [55, 55]});
-var boI = L.icon({iconUrl: 'Icons/Bow.png', iconSize: [55, 55]});
+var bowI = createIcon('Bow', 138, 138, "Hero's Bow");
 var bBI = L.icon({iconUrl: 'Icons/Bomb Bag.png', iconSize: [40.7, 55]});
+var gBBI = createIcon('Giant Bomb Bag', 125, 164);
 var claI = L.icon({iconUrl: 'Icons/Clawshot0.png', iconSize: [39.3, 55]});
 var doclaI = L.icon({iconUrl: 'Icons/Clawshot1.png', iconSize: [55, 43.7]});
 var spinI = L.icon({iconUrl: 'Icons/Spinner.png', iconSize: [39.3, 55]});
@@ -670,7 +827,7 @@ var slingshot = new Item('Slingshot', slI, slI);
 var lantern = new Item('Lantern', laI, laI);
 var boomerang = new Item('Gale Boomerang', gBI, gaboI);
 var ironBoots = new Item('Iron Boots', iBI, iBI);
-var bow = new Item("Hero's Bow", boI, boI);
+var bow = new Item("Hero's Bow", bowI, bowI);
 var bombBag = new Item('Bomb Bag', bBI, bBI);
 var clawshot = new Item('Clawshot', clawI, claI);
 var doubleClawshot = new Item('Double Clawshots', dclawI, doclaI);
@@ -680,164 +837,91 @@ var redDominionRod = new Item('Powerless Dominion Rod', reddomI, reddomI);
 var dominionRod = new Item('Dominion Rod', domI, domI);
 var shadowCrystal = new Item('Shadow Crystal', shaCryI, shaCryI);
 var woodenSword = new Item('Wooden Sword', wooSwoI, wooSwoI);
+var masterSword = new Item('Master Sword', masSwoI, masSwoI);
+var zoraArmor = new Item('Zora Armor', zoraArmI, zoraArmI);
+var magicArmor = new Item('Magic Armor', magArmI, magArmI);
 var wallet = new Item('Wallet', walI, walI);
 var bigWallet = new Item('Big Wallet', walbigI, walbigI);
 var giantWallet = new Item('Giant Wallet', walgiI, walgiI);
+var gateKeys = new Item('Gate Keys', smaKeyI, smaKeyI);
 
+//Storage Units
+var baseSU = new StorageUnit('base' , // 400 checks
+    "00000000000000000000000000000000000000000000000000" + 
+    "00000000000000000000000000000000000000000000000000" +
+    "00000000000000000000000000000000000000000000000000" +
+    "00000000000000000000000000000000000000000000000000" +
+    "00000000000000000000000000000000000000000000000000" +
+    "00000000000000000000000000000000000000000000000000" +
+    "00000000000000000000000000000000000000000000000000" +
+    "00000000000000000000000000000000000000000000000000");
+var poesSU = new StorageUnit('poes', '000000000000000000000000000000000000000000000000000000000000'); // 60 checks
+var giftsSU = new StorageUnit('gifts', '000000000000000000000000000000000000000000000000000000000'); // 57 checks
+var bugsSU = new StorageUnit('bugs', '000000000000000000000000'); // 24 checks
+var skillsSU = new StorageUnit('skills', '0000000000000'); // 7 + 6 = 13 checks (Skills + Stones)
+var skycSU = new StorageUnit('skyc', '000000'); // 6 checks
+var shopSU = new StorageUnit('shop', '0000000'); // 7 checks
+var ooccooSU = new StorageUnit('ooccoo', '0000000'); // 7 flags
+var lockedDoorSU = new StorageUnit('locked', '000000000000000000000000000000000000000000000000000000000000');  // 60 flags      
+var notaRupeesSU = new StorageUnit('notaRupee', '0000000000000000000000000000000000000000'); // 40 flags
 
+var trackerSU = new StorageUnit('tracker', '0000000000000000000000010\0\0' + '0\0' + '00000000000000000000000000000'); // 59 flags
+var settingSU = new StorageUnit('settings', '111111111111011111111111111111111111111111111111111111111111'); // 60 flags
+
+var storUnits = [baseSU, poesSU, giftsSU, bugsSU, skillsSU, skycSU, shopSU,
+     ooccooSU, lockedDoorSU, notaRupeesSU, trackerSU, settingSU];
 
 
 //Global variables
 var visibleCategories = [];
 var trackerItems = [];
 var obtainedItems = [];
-var provinces = [];
-var mapState;
-var settings;
-var checks;
-var submaps;
-var TL;
+
+var provinces;
+var dungeons;
+
 var loadedDungeon;
 var activeFloor;
-var map;
-var dn;
-// var mainPopup;
-// var dungeonPopup;
-// var visMainPop = true;
-// var visDunPop = true;
+var floorOffset;
 
+var map;
+var TL;
+var mapState;
 
 
 document.addEventListener("DOMContentLoaded", function() {
     console.time('Start');
 
-    //Loading Local Storage
-    if(localStorage.getItem("tracker") == null) {
-        localStorage.setItem('base', // 400 checks
-        "00000000000000000000000000000000000000000000000000" + 
-        "00000000000000000000000000000000000000000000000000" +
-        "00000000000000000000000000000000000000000000000000" +
-        "00000000000000000000000000000000000000000000000000" +
-        "00000000000000000000000000000000000000000000000000" +
-        "00000000000000000000000000000000000000000000000000" +
-        "00000000000000000000000000000000000000000000000000" +
-        "00000000000000000000000000000000000000000000000000"); 
-        localStorage.setItem('poes', '000000000000000000000000000000000000000000000000000000000000'); // 60 checks
-        localStorage.setItem('gifts', '000000000000000000000000000000000000000000000000000000000'); // 57 checks
-        localStorage.setItem('bugs', '000000000000000000000000'); // 24 checks
-        localStorage.setItem('skills', '0000000'); // 7 checks
-        localStorage.setItem('skyc', '000000'); // 6 checks
-        localStorage.setItem('shop', '0000'); // 4 checks
-        localStorage.setItem('fake', '0000000000000000000000000000000000000000000000000000000000'); // 58 flags
-        localStorage.setItem('settings', '111111111111011111111111111111111111111111111111111111111111'); // 60 flags
-        localStorage.setItem('tracker', '0000000000000000000000010\0\0' + '0\0' + '00000000000000000000000000000'); // 59 flags
-    }
-
+    //Checking Local Storage
+    for (let i = 0; i < storUnits.length; ++i) 
+        storUnits[i].checkIfInitialized();
 
     //Loading Settings
-    var setche = document.getElementById('setche');
-    setche.addEventListener('click', function () {
-        if (settings[0].checked) {
-            let allUnchecked = true;
-            for (let i = 1; i < 8; ++i)
-                allUnchecked = allUnchecked && !settings[i].checked;
-            if (allUnchecked) {
-                setFlag('settings', 0, '0');
-                settings[0].checked = false;
+    let settingsFlags = settingSU.getAllFlags();
+    let settings = document.querySelectorAll("input[type='checkbox']");
+    for(var i = 0; i < settings.length; i++) {
+        if (settingsFlags[i] == '1') {
+            settings[i].checked = true;
+            switch(i) {
+                case 1: visibleCategories.push('base'); break;
+                case 2: visibleCategories.push('poes'); break;
+                case 3: visibleCategories.push('bugs'); break;
+                case 4: visibleCategories.push('gifts'); break;
+                case 5: visibleCategories.push('skyc'); break;
+                case 6: visibleCategories.push('skills'); break;
+                case 7: visibleCategories.push('shop'); break;
+                case 9: visibleCategories.push('ooccoo'); break;
+                case 10: visibleCategories.push('locked'); break;
+                case 11: visibleCategories.push('notaRupee'); break;
+                case 13: visibleCategories.push('bottle'); break;
+                case 14: visibleCategories.push('rshop'); break;
+                case 15: visibleCategories.push('grass'); break;
+                case 16: visibleCategories.push('monrup'); break;
+                case 17: visibleCategories.push('fish'); break;
             }
-                
-        }
-        else {
-            for (let i = 1; i < 8; ++i)
-                if (settings[i].checked) {
-                    settings[0].checked = true;
-                    setFlag('settings', 0, '1');
-                    break;
-                }
-        } 
-        if (settings[8].checked) {
-            let allUnchecked = true;
-            for (let i = 9; i < 11; ++i)
-                allUnchecked = allUnchecked && !settings[i].checked;
-            if (allUnchecked) {
-                setFlag('settings', 8, '0');
-                settings[8].checked = false;
-            }
-                
-        }
-        else {
-            for (let i = 9; i < 11; ++i)
-                if (settings[i].checked) {
-                    settings[8].checked = true;
-                    setFlag('settings', 8, '1');
-                    break;
-                }
-        }         
-    })
-    var settingsFlags = localStorage.getItem('settings');
-    settings = document.querySelectorAll("input[type='checkbox']");
-    settings[0].addEventListener('click', function() {
-        if (this.checked) {
-            setFlag('settings', 0, '1');
-            for (let i = 1; i < 8; ++i) {
-                settings[i].click();
-            }          
-        }
-        else {
-            setFlag('settings', 0, '0');
-            for (let i = 1; i < 8; ++i) {
-                if (settings[i].checked)
-                    settings[i].click();
-            }
-        }
-    });
-    settings[1].addEventListener('click', function() {iconSet('base', 1)});
-    settings[2].addEventListener('click', function() {iconSet('poes', 2)});
-    settings[3].addEventListener('click', function() {iconSet('bugs', 3)});
-    settings[4].addEventListener('click', function() {iconSet('gifts', 4)});
-    settings[5].addEventListener('click', function() {iconSet('skyc', 5)});
-    settings[6].addEventListener('click', function() {iconSet('skills', 6)});
-    settings[7].addEventListener('click', function() {iconSet('shop', 7)});
-    settings[8].addEventListener('click', function() {
-        if (this.checked) {
-            setFlag('settings', 8, '1');
-            for (let i = 9; i < 11; ++i) {
-                settings[i].click();
-            }          
-        }
-        else {
-            setFlag('settings', 8, '0');
-            for (let i = 9; i < 11; ++i) {
-                if (settings[i].checked)
-                    settings[i].click();
-            }
-        }
-    });
-    settings[9].addEventListener('click', function() {iconSet('fake', 9)});
-    settings[10].addEventListener('click', function() {iconSet('doors', 10)});
-    settings[11].addEventListener('click', function() {
-        setFlag('settings', 11, settings[11].checked ? '1': '0'); 
-        reloadIcons();
-    });
-    settings[12].addEventListener('click', function() {
-        setFlag('settings', 12, settings[12].checked ? '1': '0'); 
-        reloadIcons();
-    });
-    settings[13].addEventListener('click', function() {
-        setFlag('settings', 13, settings[13].checked ? '1': '0'); 
-        reloadIcons();
-    });
-    settings[14].addEventListener('click', function() {
-        setFlag('settings', 14, settings[14].checked ? '1': '0');
-        reloadIcons();
-    });
-    settings[15].addEventListener('click', function() {
-        setFlag('settings', 15, settings[15].checked ? '1': '0'); 
-        reloadIcons();
-    });
-    settings[16].addEventListener('click', function() {
-        setFlag('settings', 16, settings[16].checked ? '1': '0'); 
-    });
+        }   
+    }
+
 
     //Loading Tracker
     var t = document.getElementsByClassName('titem');
@@ -866,8 +950,8 @@ document.addEventListener("DOMContentLoaded", function() {
     trackerItems[18] = new TrackerItem(t[18], 0, 1, shadowCrystal); // Shadow Crystal
     trackerItems[19] = new TrackerItem(t[19], 1, 4); // Swords
     trackerItems[20] = new TrackerItem(t[20], 1, 3); // Shields
-    trackerItems[21] = new TrackerItem(t[21], 0, 1); // Zora Armor
-    trackerItems[22] = new TrackerItem(t[22], 0, 1); // Magic Armor
+    trackerItems[21] = new TrackerItem(t[21], 0, 1, zoraArmor); // Zora Armor
+    trackerItems[22] = new TrackerItem(t[22], 0, 1, magicArmor); // Magic Armor
     trackerItems[23] = new TrackerItem(t[23], 2, 3, [wallet, bigWallet, giantWallet]); // Wallets
     trackerItems[24] = new TrackerItem(t[24], 3, 7); // Hidden Skills
     trackerItems[25] = new TrackerItem(t[25], 3, 24); // Golden Bugs
@@ -876,8 +960,8 @@ document.addEventListener("DOMContentLoaded", function() {
     trackerItems[28] = new TrackerItem(t[28], 3, 45); // Heart Pieces
     trackerItems[29] = new TrackerItem(t[29], 3, 8); // Heart Containers
     trackerItems[30] = new TrackerItem(t[30], 3, 3); // Fused Shadows
-    trackerItems[31] = new TrackerItem(t[31], 3, 3); // Mirror Shards
-    trackerItems[32] = new TrackerItem(t[32], 0, 1); // Gate Keys
+    trackerItems[31] = new TrackerItem(t[31], 3, 4); // Mirror Shards
+    trackerItems[32] = new TrackerItem(t[32], 0, 1, gateKeys); // Gate Keys
     trackerItems[33] = new TrackerItem(t[33], 3, 3); // Hyrule Castle Keys
     trackerItems[34] = new TrackerItem(t[34], 0, 1); // Hyrule Castle Boss Key
     trackerItems[35] = new TrackerItem(t[35], 0, 1); // Diababa
@@ -905,7 +989,7 @@ document.addEventListener("DOMContentLoaded", function() {
     trackerItems[57] = new TrackerItem(t[57], 3, 7); // Palace of Twilight Keys
     trackerItems[58] = new TrackerItem(t[58], 0, 1); // Palace of Twilight Boss Key
     for (let i = 0; i < trackerItems.length; ++i) {
-        let state = i == 25 || i == 26 || i == 28 ? getFlagAsCharCode('tracker', i) : getFlagAsNumber('tracker', i);
+        let state = i == 25 || i == 26 || i == 28 ? trackerSU.getFlagAsCharCode(i) : trackerSU.getFlagAsNumber(i);
         if (state < trackerItems[i].max / 2) {
             for (let _ = 0; _ < state; ++_)
                 increaseState(i);
@@ -916,11 +1000,8 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     }
 
-
-
-    dn =  document.getElementById("dn");
     map = L.map('map', {
-        zoom: -4,
+        zoom: -5,
         minZoom: -5,
         maxZoom: 0,
         center: [-4913, 4257],
@@ -937,114 +1018,461 @@ document.addEventListener("DOMContentLoaded", function() {
         crs: L.CRS.Simple,
         bounds: [[0, 0], [-9826, 8515]] 
     })
-    // window.addEventListener('keydown', mainPopupControls);
-    // map.on('keydown', mainPopupControls);  
-    document.getElementById("setIcon").addEventListener('click', function() { showRightMenu('settings', "25vw")});
-    document.getElementById("setX").addEventListener('click', function() { hideRightMenu('settings')});
-    document.getElementById("contIcon").addEventListener('click', function() { showRightMenu('controls', "25vw")});
-    document.getElementById("contX").addEventListener('click', function() { hideRightMenu('controls')});
-    document.getElementById("trackerIcon").addEventListener('click', function() { showRightMenu('tracker', "29vw")});
-    document.getElementById("traX").addEventListener('click', function() { hideRightMenu('tracker')});
-    document.getElementById("checkX").addEventListener('click', function() { hideDetails()});  
+
     console.time('Checks Creation');
-    checks = [ //   ♂  ♀
-        new Check([-9094, 4809], frI, 0, 'gifts', 0, undefined, undefined, 'Retrieve the cradle from the monkey using the hawk and deliver it to Uli to receive the fishing rod.'),
-        new Check([-7405, 4910], laI, 0, 'base', 27, undefined, undefined, 'Talk to Coro to obtain the lantern.'), //TO VERIFY
-        new Check([-7023, 4805], sCI, 0, 'base', 29, smaKeyI, undefined, 'Walk into the cave and open the chest to obtain the key to the Faron Woods gate.'),
-        new Check([-7023, 4834], cI, 0, 'base', 30, hPI, [lantern], 'Light the 2 torches besides the small chest and climb the ledge to open the chest.'),
-        new Check([-7121, 4136], sCI, 0, 'base', 31, yRI, undefined, 'Defeat the Deku Baba and open the chest behind it.'),
-        new Check([-7405, 4885], bottleI, 0, 'gifts', 2, undefined, undefined, 'After clearing the Faron twilight, talk to Coro and he will offer you the oil bottle for 100 rupees.'),
-        new Check([-7104, 4184], golWolfI, 0, 'skills', 0, undefined, undefined, 'Meet the golden wolf after clearing the Faron Twilight.'),
-        new Check([-7222, 4518], sCI, 0, 'base', 52, rRI, [lantern], 'Clear out the purple fog with the lantern and climb the ledge to reach the chest.'),
-        new Check([-7010, 4567], sCI, 0, 'base', 53, yRI, [lantern], 'Clear out the purple fog with the lantern and go to the left of the cave entrance to find the chest.'),
-        new Check([-7351, 4513], cI, 0, 'base', 54, pRI, [lantern], 'Clearn out the purple fog with the lantern and from the exit of the mist, go right to find the chest.'),
-        new Check([-6278, 4930], hPI, 0, 'base', 55, undefined, [[boomerang, clawshot]], 'The heart piece is on the leaves of a tree and can be grabbed with a long ranged item.'),
-        new Check([-6344, 4764], bI('Beetle', true), 0, 'bugs', 0, undefined, undefined, 'This ♂ Beetle is on a tree trunk, simply pick it up.'),
-        new Check([-5985, 5151], bI('Beetle', false), 0, 'bugs', 1, undefined, [[boomerang, clawshot]], 'This ♀ Beetle is on an elevated tree trunk, use the boomerang or the clawshot to bring it closer.'),
+    //Used more than once so can't be declared in the array
+    let castlePoints = [
+        [-2798, 5430], [-2863, 5622], [-2940, 5472], [-3184, 5586], [-3188, 5550], [-3362, 5552], [-3357, 5551], [-3357, 5588], 
+        [-3225, 5632], [-3481, 5705], [-3556, 5756], [-3558, 5664], [-3653, 5729], [-3370, 5828], [-3702, 5958], [-3707, 5907], 
+        [-3782, 5912], [-3938, 5914], [-3938, 4990], [-3788, 4994], [-3707, 4986], [-3706, 4940], [-3358, 5074], [-3649, 5173], 
+        [-3558, 5242], [-3552, 5158], [-3218, 5266], [-3360, 5325], [-3359, 5348], [-3184, 5345], [-3180, 5304], [-2936, 5440]];
+    provinces = [
+        new Province([ // Ordona
+            [-8053, 5568], [-7628, 6232], [-8208, 6872], [-8776, 7160], [-9752, 6952], [-9876, 6564], [-9976, 5776], [-9924, 5088], 
+            [-9750, 4672], [-8792, 4338], [-7853, 4693]
+        ], false, [-8816, 5664], [
+            new Check([-9094, 4809], frI, giftsSU, undefined, undefined, 'Retrieve the cradle from the monkey using the hawk and deliver it to Uli to receive the fishing rod.'),
+            new Check([-8542, 4795], golWolfI, skillsSU, undefined, [shadowCrystal], 'Summoned by the Death Mountain howling stone.'),
+            new Check([-9514, 4964], hPI, giftsSU, undefined, undefined, 'After getting Epona back from the monsters, talk to Fado and complete the Goat Hoarding minigame in under 2 minutes to receive the heart piece.'),
+
+            new FakeCheck([-9058, 4788], oRI, notaRupeesSU, [[boomerang, clawshot]], "This orange rupee is hiding behind Rusl's house, use the boomerang or clawshot through the vines to obtain it."),
+            new FakeCheck([-9006, 4999], pRI, notaRupeesSU, [[boomerang, clawshot]], 'This purple rupee is hidden in the tall grass on the little platform to the left of the windmill.'),
+
+            new NonCheck([-9517, 5015], horseGI, 'grass'),
+            new NonCheck([-8500, 4800], horseGI, 'grass'),
+            new NonCheck([-8991, 4960], hawkGI, 'grass'),
+            new NonCheck([-8940, 5001], hawkGI, 'grass'),
+            new NonCheck([-9169, 4934], hawkGI, 'grass'),
+            new NonCheck([-9035, 4848], beeI, 'bottle'),
+            //Ordon fishing spot
 
 
-        new Check([-4574, 3388], cI, 0, 'base', 0, hPI, [clawshot], "Use the clawshot on the vines and climb up completely on the platform. Then, grab the ledge to the left of the vines " +
-            "and slide right until you reach the platform with the chest."),
-        new Check([-4928, 3063], sCI, 1, 'base', 1, yRI, undefined, "Play the Flight By Fowl minigame (20 rupees) and use the Cucco to reach the chest."),
-        new Check([-5610, 7578], hPI, 2, 'base', 2, undefined, [bow, bombBag,  [boomerang, clawshot]], "Use the bomb arrows to blow up the rocks up on the ledge, than use the boomerang or the clawshot to obtain the heart piece"),
+            new FlooredSubmap([-8791, 4941], orDoorI, 'LinkHouse', [
+                [[660, 485], [new Check([-8790, 5289], cI, baseSU, pRI, [lantern], 'Use the lantern to locate the chest and be able to open it.')]],
+                [[659, 478], [new Check([-8661, 5068], cI, baseSU, wooSwoI, undefined, 'The chest is available after buying the slingshot.')]]
+            ], 2),
+            new Submap([-8964, 4938], orDoorI, 'SeraShop.png', [464, 491], [
+                new Check([-8790, 5034], slI, shopSU, undefined, undefined, "After saving Sera's Cat, you can buy the slingshot for 30 rupees."),
+                new Check([-8837, 4880], bottleI, giftsSU, undefined, [fishingRod], 'Obtain the bottle by talking to Sera her cat has returned with a fish you gave him with the fishing rod.')
+                //Add Entire Shop
+            ]),
+            new Submap([-9080, 4783], orDoorI, 'RuslHouse.png', [656, 449], [
+                new Check([-9004, 4850], ordSwoI, baseSU, undefined, undefined, 'Pick up the sword on the couch after entering by the front door or by the side of the house by digging as Wolf Link.'),
+            ]),
+            new Submap([-9037, 5015], orDoorI, 'JaggleHouse.png', [661, 290], [
+                new Check([-9044, 4410], ordShieI, baseSU, undefined, [shadowCrystal], 'Use Midna to jump to the ledge where the shield is, than bonk on the wall twice to make it fall and obtain it.')
+            ]),
+            new FlooredSubmap([-9171, 4953], orDoorI, 'Bo', [
+                [[469, 780], [new Check([-9339, 5044], cI, giftsSU, iBI, undefined, 'After clearing the Eldin Twilight, wrestle against Bo to optain the iron boots.')]],
+                [[333, 247], []]
+            ]),
+        ]),
+        new Province([ // Faron
+            [-5412, 5564], [-5374, 5998], [-5954, 6282], [-5944, 7028], [-6700, 7216], [-7144, 6960], [-8048, 5568], [-7844, 4680],
+            [-7360, 4200], [-6640, 3464], [-6360, 3744], [-5944, 3776], [-5834, 4743], [-5630, 4883]
+        ], false, [-6512, 5536], [
+            new Check([-7405, 4910], laI, baseSU, undefined, undefined, 'Talk to Coro to obtain the lantern.'), //TO VERIFY
+            new Check([-7023, 4805], sCI, baseSU, smaKeyI, undefined, 'Walk into the cave and open the chest to obtain the key to the Faron Woods gate.'),
+            new Check([-7023, 4834], cI, baseSU, hPI, [lantern], 'Light the 2 torches besides the small chest and climb the ledge to open the chest.'),
+            new Check([-7121, 4136], sCI, baseSU, yRI, undefined, 'Defeat the Deku Baba and open the chest behind it.'),
+            new Check([-7405, 4885], bottleI, giftsSU, undefined, undefined, 'After clearing the Faron twilight, talk to Coro and he will offer you the oil bottle for 100 rupees.'),
+            new Check([-7104, 4184], golWolfI, skillsSU, undefined, undefined, 'Meet the golden wolf after clearing the Faron Twilight to learn the Ending Blow.'),
+            new Check([-7235, 4518], sCI, baseSU, rRI, [lantern], 'Clear out the purple fog with the lantern and climb the ledge to reach the chest.'),
+            new Check([-7010, 4567], sCI, baseSU, yRI, [lantern], 'Clear out the purple fog with the lantern and go to the left of the cave entrance to find the chest.'),
+            new Check([-7351, 4513], cI, baseSU, pRI, [lantern], 'Clearn out the purple fog with the lantern and from the exit of the mist, go right to find the chest.'),
+            new Check([-6278, 4930], hPI, baseSU, undefined, [[boomerang, clawshot]], 'The heart piece is on the leaves of a tree and can be grabbed with a long ranged item.'),
+            new Check([-6344, 4764], bI('Beetle', true), bugsSU, undefined, undefined, 'This ♂ Beetle is on a tree trunk, simply pick it up.'),
+            new Check([-5985, 5151], bI('Beetle', false), bugsSU, undefined, [[boomerang, clawshot]], 'This ♀ Beetle is on an elevated tree trunk, use the boomerang or the clawshot to bring it closer.'),
+            new Check([-7184, 4515], poeSoulI, poesSU, undefined, [shadowCrystal], 'Use Midna jump to reach the platform where the poe is.'),
+            new Check([-6801, 3677], masSwoI, baseSU, undefined, [shadowCrystal], 'Press A on the Master Sword to obtain it.'),
+            new Check([-6850, 3677], shaCryI, baseSU, undefined, [shadowCrystal], 'Press A on the Master Sword to obtain the shadow crystal.'),
+            new Check([-7184, 3722], bI('Snail', true), bugsSU, undefined, [[boomerang, clawshot]], 'This ♂ Snail is on the ceiling of the alcove with the broken chest.'),
+            new Check([-6135, 4891], cI, baseSU, oRI, [clawshot], 'The chest is under the bridge. Clawshot the target above the chest to reach it.'),
+
+            new FakeCheck([-7340, 4043], howlStoI, skillsSU, [shadowCrystal], 'Spawns the South Castle Town Golden Wolf, accessible while on the way to the Master Sword.'),
+
+            new NonCheck([-7900, 4857], horseGI, 'grass'),
+            new NonCheck([-7701, 4803], horseGI, 'grass'),
+            new NonCheck([-6666, 4936], horseGI, 'grass'),
+            // Faron spring fishing spot
 
 
+            new Submap([-7447, 4718], caveEI, 'FaronEntryCave.png', [455, 495], [
+                new Check([-7340, 4450], sCI, baseSU, yRI, undefined, 'Use the lantern to be able to locate the chest more easily.')
+            ]),
+            new Submap([-6662, 5180], grottoI, 'Grotto1.png', [394, 496], [
+                new Check([-6928, 5138], sCI, baseSU, yRI, [shadowCrystal], 'Defeat all the enemies and cut the grass to make it easier to reach the chest.'),
+                new Check([-6533, 5308], sCI, baseSU, rRI, [shadowCrystal], 'Defeat all the enemies and cut the grass to make it easier to reach the chest.'),
+                new Check([-6370, 5050], sCI, baseSU, rRI, [shadowCrystal], 'Defeat all the enemies and cut the grass to make it easier to reach the chest.'),
+                //Blue/Rare Chu Jelly and Rupees By Defeating enemies
+            ]),
+            new Submap([-5652, 4644], grottoI, 'Grotto2.png', [351, 495], [
+                //Fishies + Worms
+            ]),
+        ]),
+        new Province([ // Eldin
+            [-5952, 6280], [-5936, 7020], [-5904, 7676], [-6044, 8248], [-5952, 8836], [-5612, 9452], [-5212, 9544], [-4584, 9492], 
+            [-3932, 9572], [-3340, 9472], [-2956, 9196], [-2460, 9040], [-1972, 8608], [-1404, 8006], [-1228, 7352], [-2164, 7080], 
+            [-2772, 7060], [-2989, 7110], [-3281, 6985], [-3432, 6760], [-3580, 6472], [-3748, 6372], [-3932, 6324], [-4276, 6340], 
+            [-4419, 6316], [-4680, 6260], [-5060, 5972], [-5332, 6004],
+        ], false, [-4096, 7904], [
+            new Check([-5504, 8095], cI, baseSU, pRI, [lantern], 'Light the 2 torches to make it appear the chest appear.'),
+            new Check([-5448, 8123], bI('Ant', true), bugsSU, undefined, undefined, 'This ♂ Ant is a the base of the tree.'),
+            new Check([-4064, 6973], bI('Grasshopper', true), bugsSU, undefined, undefined, 'This ♂ Grasshopper is particulary hard to get. Use the boomerang or clawshot if necessary.'),
+            new Check([-3372, 5952], bI('Grasshopper', false), bugsSU, undefined, undefined, 'This ♀ Grasshopper is just lying on the ground.'),
+            new Check([-3158, 7408], bI('Phasmid', true), bugsSU, undefined, [[boomerang, clawshot]], "This ♂ Phasmid is too high to reach, so you'll need to use the clawshot or the boomerang to make it come down."),
+            new Check([-2390, 7561], bI('Phasmid', false), bugsSU, undefined, [[boomerang, clawshot]], "This ♀ Phasmid is too high to reach, you can use the boomerang from down below to reach her, or " + 
+                "climb the ledge using the clawshot target."),
+            new Check([-5584, 6316], bI('Pillbug', false), bugsSU, undefined, undefined, 'This ♀ Pill Bug is hidden in the tall grass.'),
+            new Check([-5431, 6004], bI('Pillbug', true), bugsSU, undefined, undefined, 'This ♂ Pill Bug is just lying on the ground.'),
+            new Check([-5299, 5673], hPI, baseSU, undefined, [[boomerang, clawshot]], 'The heart piece is sitting on top of the stone pillar.'),
+            new Check([-5263, 5626], cI, baseSU, hPI, [doubleClawshot], 'Use the target path and the vines to reach the chest.\nGlitch: Use the boomerang to LJA to the chest.'),
+            new Check([-5130, 7593], hPI, giftsSU, undefined, [bow], 'After completing the Goron Mines, talk to Talo on top of the watchtower to play his minigame, than succeed to obtain the heart piece.'),
+            new Check([-5053, 7538], cI, baseSU, oRI, [[bombBag, ballAndChain]], "Blow up the rock south of the village near the spring, and use the chickens inside the cave (they are near the center of the village if "+
+                "you reload the area) to:<br>1. Climb behind Malo Mart and make the jump to the Inn<br>2. Climb on top of the inn and jump towards the top of Barnes' shop<br>3. Climb to the base of the watchtower near the goron" + 
+                "<br>4. Go to the left side of the watchtower, and jump towards the chest with the chicken.<br>The chest is above the path to Death Mountain."),
+            new Check([-5847, 7696], cI, baseSU, hPI, [[bombBag, ballAndChain], [ironBoots, magicArmor]], 'Break the rock to enter the cave, then let yourself sink in the water at the end of the cave.'),
+            new Check([-4399, 6674], cI, baseSU, hPI, [[bombBag, ballAndChain]], 'Destroy the rocks at the bottom of the trail, than start climbing. Once you reach the vines with a rock on top, use a well timed bomb throw or ' +
+                'the ball and chain to destroy the rock. Then, make the jump and climb the vines, than jump down a few times to reach the chest.'),
+            new Check([-5474, 8262], zoraArmI, giftsSU, undefined, [gateKeys], 'Save Ralis and follow Rutella through the graveyard to obtain the Zora Armor.'),
+            new Check([-5228, 7767], poeSoulI, poesSU, undefined, [shadowCrystal], "Appears only at Night.In the ruins of Barnes' old warehouse."),
+            new Check([-5107, 7621], poeSoulI, poesSU, undefined, [shadowCrystal], "Appears only at Night. At the base of the watchtower."),
+            new Check([-5610, 7578], hPI, baseSU, undefined, [bow, bombBag,  [boomerang, clawshot]], "Use the bomb arrows to blow up the rocks up on the ledge, than use the boomerang or the clawshot to obtain the heart piece"),
+            new Check([-5455, 8048], poeSoulI, poesSU, undefined, [shadowCrystal], "Appears only at Night. Near the graves."),
+            new Check([-4331, 8118], poeSoulI, poesSU, undefined, [shadowCrystal], "Appears only at Night. Up on the ledge, use a goron or the clawshot to get up."),
+            new Check([-4049, 8169], cI, baseSU, hPI, [clawshot], 'Clawshot the vines hanging from the stone bridge and jump down the alcove to the chest.'),
+            new Check([-3944, 5550], hPI, giftsSU, undefined, undefined, 'After repairing the bridge for 1000 rupees, talk to the Goron Elder in front of the Malo Mart in Kakariko and bring the springwater to the goron.'),
+            new Check([-5347, 5978], poeSoulI, poesSU, undefined, [shadowCrystal], 'Only appears at night. Behind the tree with the crows.'),
 
-        new NonCheck([-9517, 5015], horseGI),
-        new NonCheck([-8500, 4800], horseGI),
-        new NonCheck([-7900, 4857], horseGI),
-        new NonCheck([-7701, 4803], horseGI),
-        new NonCheck([-6666, 4936], horseGI),
-        new NonCheck([-8991, 4960], hawkGI),
-        new NonCheck([-8940, 5001], hawkGI),
-        new NonCheck([-9169, 4934], hawkGI),
-        
+            new FakeCheck([-4063, 8232], howlStoI, skillsSU, [shadowCrystal], 'This Howling Stone is accessible while clearing out the Eldin Twilight. It spawns the Ordon Spring golden wolf.'),
+            new FakeCheck([-5380, 5510], rupRockI, notaRupeesSU, [[bombBag, ballAndChain]], 'Blow up the rock with a bomb or hit it with the ball and chain to reveal rupees.'),       
+            new FakeCheck([-5840, 7667], rupRockI, notaRupeesSU, [bombBag, [ironBoots, magicArmor]], 'The rock is underwater in front of the chest.'),
+            new FakeCheck([-5074, 5909], rupRockI, notaRupeesSU, [[bombBag, ballAndChain]], 'The rock is in the middle of the field.'),
+            new FakeCheck([-4269, 8150], rRI, notaRupeesSU, undefined, 'There are 4 red rupees hidden under rocks near the poes, for a total of 80 rupees.'),
+            new FakeCheck([-5513, 7720], sRI, notaRupeesSU, [shadowCrystal, bombBag, bow], 'Climb up the sanctuary with Midna jumps, than shoot a bomb arrow at the bell to make the rupee drop.'),
+            new FakeCheck([-5518, 8237], rupRockI, notaRupeesSU, [bombBag, [ironBoots, magicArmor]], 'Underwater, right of the Zora shrine.'),
+
+            new NonCheck([-5564, 7612], horseGI, 'grass'),
+            new NonCheck([-4716, 6818], horseGI, 'grass'),
+            new NonCheck([-5342, 6186], horseGI, 'grass'),
+            new NonCheck([-4108, 8225], hawkGI, 'grass'),
+            new NonCheck([-5507, 8125], beeI, 'bottle'),
+            new NonCheck([-4102, 8260], beeI, 'bottle'), //Guaranteed Rare Chu Jelly
+            // 4 red rupees under rocks on death mountain trail near the poe
+            //Kak Goron Night Shop
+            // Death Mountain Shop
+            // Graveyard Crows
+            // Gorge Tree Crows
+            // Kak Night Crows (Maybe?)
+            //Eldin spring fishing spot
+            //Graveyard fishing spot
+
+
+            new Submap([-5259, 7660], orDoorI, 'KakEmptyHouse.png', [399, 230], [
+                new Check([-5239, 7705], bI('Ant', false), bugsSU, undefined, undefined, 'This ♀ Ant is walking around the floor of the house.')
+            ]),
+            new FlooredSubmap([-5283, 7580], orDoorI, 'Inn', [
+                [[600, 241], [new Check([-5330, 8105], sCI, baseSU, rRI, undefined, 'The chest is hidden under the staircase.')]],
+                [[655, 343], []]
+            ]),
+            new Submap([-5162, 7670], orDoorI, 'Barnes.png', [399, 249], [
+                new Check([-5300, 7755], bBI, shopSU, undefined, undefined, 'After clearing the Goron Mines, you buy this Bomb Bag from Barnes for 120 rupees.')
+            ]),
+            new FlooredSubmap([-5097, 7593], orDoorI, 'Watchtower', [
+                [[379, 300], []],
+                [[379, 274], [new Check([-5255, 7317], cI, baseSU, pRI, undefined, 'Climb the ladder to reach the chest.')]]
+            ], 2),
+            new Submap([-5382, 7565], orDoorI, 'KakMaloMart.png', [399, 286], [
+                new Check([-5445, 7250], hylShieI, shopSU, undefined, undefined, 'You can buy it after saving Collin for 200 rupees.'),
+                new Check([-5445, 7325], woodShieI, shopSU, undefined, undefined, 'You can buy it after saving Collin for 50 rupees.'),
+                new Check([-5445, 7400], redPotI, shopSU, undefined, undefined, 'You can buy it after saving Collin for 30 rupees.'),
+                new Check([-5445, 7475], hawkeyeI, shopSU, undefined, [bow], "You can buy it for 100 rupees after attempting the Talo's Sharpshooting minigame.")
+                //Add Entire Shop
+            ]),
+            new Submap([-5711, 6043], caveEI, 'EldinCave.png', [862, 780], [
+                new Check([-5810, 6372], cI, baseSU, pRI, [[bombBag, ballAndChain]], 'Kill the skulltula and open the chest.'),
+                new Check([-5469, 6199], poeSoulI, poesSU, undefined, [[bombBag, ballAndChain], shadowCrystal], 'Use your senses to see the poe at the end of this branch.'),
+                new Check([-5399, 6319], cI, baseSU, hPI, [[bombBag, ballAndChain], lantern], 'Light the 2 torches to make the chest appear.'),
+                new Check([-5530, 5822], sCI, baseSU, rRI, [[bombBag, ballAndChain]], 'Use bombs or the ball and chain to destroy the cobwebs and reach the chest.'),
+                new NonCheck([-5604, 5704], beeI, 'bottle') //Yellow Chu
+            ]),
+            new Submap([-5607, 6282], grottoI, 'Grotto1.png', [394, 496], [
+                //Keese that drop rupees
+            ]),
+            new Submap([-3772, 6334], grottoI, 'Grotto0.png', [628, 496], [
+                new Check([-3527, 6279], cI, baseSU, pRI, [shadowCrystal, lantern], 'Light the 2 torches to make the chest appear.'),
+                new Check([-3678, 6013], sCI, baseSU, pRI, [shadowCrystal], 'Hidden in the tall grass.'),
+                //8 monster dropping worms.
+                //Rare/Blu Chu
+            ]),
+            new Submap([-3249, 7223], grottoI, 'Grotto2.png', [351, 495], [
+                new Check([-2987, 7192], sCI, baseSU, pRI, [shadowCrystal], 'Cross the water to reach the chest. Be careful of the Skullfish and Bombfish.'),
+                new NonCheck([-2941, 7190], beeI, 'bottle'),
+                //Skullfish and Bombfish Fishing spot
+            ]),
+
+        ]),
+        new Province([ // Desert
+            [-6646, 3472], [-6704, 2448], [-6584, 1152], [-6208, 880], [-5240, 1000], [-3668, 1256], [-3480, 1804], [-3646, 2242], 
+            [-3804, 2924], [-3840, 3154], [-4984, 3264], [-5116, 3148], [-5280, 3184], [-5472, 3256], [-5640, 3424], [-5953, 3742],
+            [-6336, 3736]
+        ], false, [-5440, 2224], [
+
+        ]),
+        new Province([ // Peak
+            [-712, 5344], [-1132, 5392], [-1296, 5360], [-1548, 5152], [-1690, 4891], [-1892, 4804], [-2076, 4624], [-2564, 4404], 
+            [-2704, 4220], [-3036, 4080], [-3624, 3880], [-3812, 3184], [-3636, 2272], [-3436, 1720], [-2668, 1568], [-2092, 1804], 
+            [-1696, 2288], [-852, 2616], [-620, 3676], [-584, 4612]
+        ], false, [-1744, 3488], [
+
+        ]),   
+        new Province([[ // Lanayru
+            [-5400, 5584], [-5360, 6000], [-5056, 5968], [-4640, 6248], [-4312, 6336], [-3696, 6344], [-3528, 6472], [-3424, 6728], 
+            [-3280, 6968], [-2992, 7104], [-2760, 7048], [-2096, 7072], [-1248, 7328], [-800, 7216], [-584, 6768], [-480, 6368], 
+            [-504, 5832], [-606, 5444], [-722, 5358], [-1104, 5408], [-1288, 5376], [-1554, 5161], [-1704, 4896], [-1894, 4812], 
+            [-2077, 4634], [-2539, 4431], [-2749, 4205], [-3632, 3892], [-3764, 3420], [-3820, 3180], [-4288, 3200], [-4974, 3290],
+            [-5081, 3201], [-5319, 3218], [-5592, 3400], [-5936, 3768], [-5813, 4728], [-5776, 4750], [-5624, 4872], [-5552, 5096]
+        ], castlePoints], false, [-2192, 5984], [
+            new Check([-610, 4930], sCI, baseSU, yRI, undefined, 'From the water, climb the path to reach the chest.'),
+            new Check([-601, 4967], sCI, baseSU, rRI, [shadowCrystal], 'Use Midna jumps to follow the path from the west shore of the domain to reach the chest.'),
+            new Check([-5461, 3284], cI, baseSU, oRI, [[ironBoots, magicArmor]], 'The chest is underwater, hidden by some tall seaweed.'),
+            new Check([-4604, 3418], bI('Mantis', true), bugsSU, undefined, [[boomerang, clawshot]], 'This ♂ Mantis is on the side of the bridge above the void. If you do not have a long ranged item, wait for it to fly near you.'),
+            new Check([-5459, 3559], bI('Mantis', false), bugsSU, undefined, [[boomerang, clawshot]], 'This ♀ Mantis is too high to reach, use a long ranged item.'),
+            new Check([-3658, 3845], bI('Butterfly', false), bugsSU, undefined, [[boomerang, clawshot]], 'This ♀ Butterfly is on a higher ledge hiding in the purples flowers. Clawshot the vines to climb the ledge ' +
+                'or grab it from below.'),
+            new Check([-4158, 3966], bI('Butterfly', true), bugsSU, undefined, undefined, 'This ♂ Butterfly is hiding in some purple flowers.'),       
+            new Check([-2589, 4365], bI('Stag Beetle', true), bugsSU, undefined, [[boomerang, clawshot]], 'This ♂ Stag Beetle is on the trunk of a tree, a bit too high to reach.'),
+            new Check([-2017, 4802], bI('Stag Beetle', false), bugsSU, undefined, [[boomerang, clawshot]], 'This ♀ Stag Beetle is above the entrance of the ice block cave, and is too high too reach.'),
+            new Check([-2910, 4855], cI, baseSU, oRI, [[ironBoots, magicArmor]], 'The chest is in the cage underwater.'),
+            new Check([-206, 4830], cI, baseSU, pRI, [boomerang, [ironBoots, magicArmor]], 'Blow out all of the 3 torches with the boomerang to make the chest appear.'),
+            new Check([-206, 4870], cI, baseSU, pRI, [lantern, [ironBoots, magicArmor]], 'Light up all the 3 torches with the lantern to make the chest appear.'),
+            new Check([-741, 4977], bI('Dragonfly', true), bugsSU, undefined, undefined, 'This ♂ Dragonfly is hiding in the tall grass.'),
+            new Check([-879, 6022], bI('Dragonfly', false), bugsSU, undefined, undefined, 'This ♀ Dragonfly is on the side of the floating bridge. Drop down from the bridge to get it.'),
+            new Check([-370, 6066], bottleI, baseSU, undefined, [fishingRod], 'Cast the fishing in the small pond isolated by the bridge to catch the bottle.'),
+            new Check([-372, 5801], hPI, baseSU, undefined, undefined, 'Go fishing with the canoe (20 rupees) and use the provided fishing rod to reel in the heart piece. You can also use the clawshot.'),
+            new Check([-853, 6061], bBI, giftsSU, undefined, [bow], 'Help Iza by blowing up all of the rocks blocking the river to receive the bomb bag.'),
+            new Check([-904, 6064], gBBI, giftsSU, undefined, [bow], "Play Iza's Raging Rapids minigame and get atleast 25 points to obtain the giant bomb bag."),
+            new Check([-4491, 4622], bI('LadybugF'), bugsSU, undefined, undefined, 'This ♀ Ladybug is in the grassy area next to the middle tree.'),
+            new Check([-4572, 4909], bI('LadybugM'), bugsSU, undefined, undefined, 'This ♂ Ladybug is hiding in the flowers on the ground.'),
+            new Check([-3917, 4177], golWolfI, skillsSU, undefined, [shadowCrystal], 'Summoned by the Upper Zora River howling stone.'),
+            new Check([-3967, 5062], poeSoulI, poesSU, undefined, [shadowCrystal], 'On the bridge at night.'),
+            new Check([-4364, 4644], cI, baseSU, oRI, [clawshot, shadowCrystal], '1. Clawshot the top of the target at the top of the right tower and climb up.<br>2. Transform into Wolf Link and cross the rope, then transform ' + 
+                'back.<br>3. Slowly walk towards the ledge to hang from it, than hold left to crawl to the left platform.<br>4. Transform back into Wolf and cross the last rope to reach the chest.'),
+            new Check([-4446, 4641], poeSoulI, poesSU, undefined, [shadowCrystal], 'Near the middle of the stairs and appears at night.'),
+            new Check([-4574, 3388], cI, baseSU, hPI, [clawshot], "Use the clawshot on the vines and climb up completely on the platform. Then, grab the ledge to the left of the vines " +
+                "and slide right until you reach the platform with the chest."),
+            new Check([-4928, 3063], sCI, baseSU, yRI, undefined, "Play the Flight By Fowl minigame (20 rupees) and use the Cucco to reach the chest."),
+            new Check([-4430, 4591], golWolfI, skillsSU, undefined, [shadowCrystal], 'Summoned by the Faron Woods howling stone.'),
+            new Check([-4905, 3923], hPI, giftsSU, undefined, [shadowCrystal], 'Play the Plumm Fruit Balloon Minigame and get 10000 or more to obtain the heart piece.'),
+            new Check([-163, 4849], bBI, giftsSU, undefined, [bombBag, [ironBoots, magicArmor]], 'Blow up the rock in the middle of the room with water bombs and talk to the Goron that comes out of it.'),
+            new Check([-475, 4844], poeSoulI, poesSU, undefined, [shadowCrystal], 'Only appears at Night. Behind the waterfall, use Midna jumps to get there.'),
+            new Check([-650, 4949], poeSoulI, poesSU, undefined, [shadowCrystal], 'Only appears at Night. In front of the small chest.'),
+
+            new FakeCheck([-852, 5918], howlStoI, skillsSU, [shadowCrystal], 'This Howling Stone spawns the West Castle Town Golden Wolf and is accessible while clearing the Lanayru Twilight.'),
+            new FakeCheck([-5458, 3876], rupRockI, notaRupeesSU, [[bombBag, ballAndChain]], 'Hidden between two larger stone structures.'),
+            new FakeCheck([-4333, 3548], rupRockI, notaRupeesSU, [[bombBag, ballAndChain]], 'Out in the open, right of the Howl Statue.'),
+            new FakeCheck([-3637, 4089], rupRockI, notaRupeesSU, [[bombBag, ballAndChain]], 'Out in the open, kill the Bulblins to make it easier to destroy.'),
+            new FakeCheck([-3412, 4111], rupRockI, notaRupeesSU, [[bombBag, ballAndChain]], 'Hidden in the corner.'),
+            new FakeCheck([-2564, 4084], rupRockI, notaRupeesSU, [[bombBag, ballAndChain]], 'Out in the open in the corner.'),
+            new FakeCheck([-475, 4702], rupRockI, notaRupeesSU, [[bombBag, ballAndChain]], 'This boulder is in the tunnel from the top of the domain to the balcony.'),
+            new FakeCheck([-477, 4725], rupRockI, notaRupeesSU, [[bombBag, ballAndChain]], 'This boulder is in the tunnel from the top of the domain to the balcony.'),
+            new FakeCheck([-808, 5851], rupRockI, notaRupeesSU, [[bombBag, ballAndChain]], 'In the open near the howling stone.'),
+            new FakeCheck([-4422, 4873], rupRockI, notaRupeesSU, [[bombBag, ballAndChain]], 'Out in the open.'),
+            new FakeCheck([-123, 4793], rupRockI, notaRupeesSU, [bombBag, [ironBoots, magicArmor]], 'Underwater left of the throne. The rocks under it are worth lifting.'),
+
+            new NonCheck([-4268, 3152], horseGI, 'grass'),
+            new NonCheck([-5218, 2926], hawkGI, 'grass'),
+            new NonCheck([-4901, 3895], hawkGI, 'grass'),
+            new NonCheck([-614, 5775], beeI, 'bottle'),
+            //Zora's Domain Fishing
+            //Lake Hylia Bridge Crows
+            //South Castle Town Crows
+            
+            
+            new Submap([-5259, 3502], caveEI, 'LanSpring.png', [485, 491], [
+
+                //Fishing
+            ]),
+            new FlooredSubmap([-4147, 4586], orDoorI, 'Agitha', [
+                [[255, 300], [
+                    new Check([-3900, 4370], bI('AntM'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-3900, 4430], bI('AntF'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-3900, 4550], bI('DayflyM'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-3900, 4610], bI('DayflyF'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-3900, 4730], bI('BeetleM'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-3900, 4790], bI('BeetleF'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+    
+                    new Check([-4025, 4370], bI('MantisM'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-4025, 4430], bI('MantisF'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-4025, 4550], bI('Stag BeetleM'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-4025, 4610], bI('Stag BeetleF'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-4025, 4730], bI('PillbugM'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-4025, 4790], bI('PillbugF'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+    
+                    new Check([-4150, 4370], bI('ButterflyM'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-4150, 4430], bI('ButterflyF'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-4150, 4550], bI('LadybugM'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-4150, 4610], bI('LadybugF'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-4150, 4730], bI('SnailM'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-4150, 4790], bI('SnailF'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+    
+                    new Check([-4275, 4370], bI('PhasmidM'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-4275, 4430], bI('PhasmidF'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-4275, 4550], bI('GrasshopperM'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-4275, 4610], bI('GrasshopperF'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-4275, 4730], bI('DragonflyM'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                    new Check([-4275, 4790], bI('DragonflyF'), giftsSU, undefined, undefined, 'Give this bug to Agitha to receive: Big Wallet (First Bug), Purple Rupee (Any Bug), Orange Rupee (Pair Completing Bug)'),
+                ]],
+                [[255, 244], []]
+            ]),
+            new Submap([-4057, 4837], orDoorI, 'Jovani.png', [403, 259], [
+                new Check([-4193, 5102], poeSoulI, poesSU, undefined, [shadowCrystal], 'Enter the house using the dig spot to get this poe'),
+            ]),
+            new Submap([-3987, 4577], orDoorI, 'STAR.png', [404, 304], [
+                new Check([-4113, 4433], bigQuivI, giftsSU, undefined, [clawshot], 'Pay 10 rupees to play the first STAR minigame and win it to receive the big quiver.'),
+                new Check([-4128, 4479], giaQuivI, giftsSU, undefined, [doubleClawshot], 'Pay 15 rupees to play the second STAR minigame and win it to receive the giant quiver.')
+            ]), 
+            new Submap([-3733, 3820], grottoI, 'Grotto0.png', [628, 496], [
+                new Check([-3718, 3801], cI, baseSU, oRI, [clawshot, shadowCrystal], "Use the clawshot on the vines to reach the grotto entrance. Once inside, " + 
+                    "defeat all the helmasaurs to make the chest appear.")
+            ])
+        ]),
+        new Province(castlePoints, true, [-3584, 5440], []) // Castle
     ];
-    submaps = [
-        new FlooredSubmap([-8791, 4941], orDoorI, 'LinkHouse', [
-            [[660, 485], [new Check([-8790, 5289], cI, 0, 'base', 34, pRI, [lantern], 'Use the lantern to locate the chest and be able to open it.')]],
-            [[659, 478], [new Check([-8661, 5068], cI, 0, 'base', 35, wooSwoI, undefined, 'The chest is available after buying the slingshot.')]]
-        ]),
-        new Submap([-8964, 4938], orDoorI, 'SeraShop.png', [464, 491], [
-            new Check([-8790, 5034], slI, 0, 'shop', 0, undefined, undefined, "After saving Sera's Cat, you can buy the slingshot for 30 rupees."),
-            new Check([-8837, 4880], bottleI, 0, 'gifts', 1, undefined, [fishingRod], 'Obtain the bottle by talking to Sera her cat has returned with a fish you gave him with the fishing rod.')
-        ]),
-        new Submap([-9080, 4783], orDoorI, 'RuslHouse.png', [656, 449], [
-            new Check([-9004, 4850], ordSwoI, 0, 'base', 32, undefined, undefined, 'Pick up the sword on the couch after entering by the front door or by the side of the house by digging as Wolf Link.'),
-        ]),
-        new Submap([-9037, 5015], orDoorI, 'JaggleHouse.png', [661, 290], [
-            new Check([-9044, 4410], ordShieI, 0, 'base', 33, undefined, [shadowCrystal], 'Use Midna to jump to the ledge where the shield is, than bonk on the wall twice to make it fall and obtain it.')
-        ]),
-        new Submap([-7447, 4718], caveEI, 'FaronEntryCave.png', [455, 495], [
-            new Check([-7340, 4450], sCI, 0, 'base', 28, yRI, undefined, 'Use the lantern to be able to locate the chest more easily.')
-        ]),
-        new Submap([-3733, 3820], grottoI, 'OWCTGrotto.png', [628, 496], [
-                new Check([-3718, 3801], cI, 3, 'base', 3, oRI, [clawshot, shadowCrystal], "Use the clawshot on the vines to reach the grotto entrance. Once inside, " + 
-                 "defeat all the helmasaurs to make the chest appear.")
-        ]),
+   
+    dungeons = [
         new Dungeon([-6915, 4098], [-6950, 4900], starI, 'Forest Temple', [
             [[2810, 2704], [
-                new Check([-5935, 4299], sCI, 0, 'base', 34, yRI, [[slingshot, bow, clawshot, boomerang]], 'Use a long ranged item to kill the spiders and climb to the chest.'),
-                new Check([-5281, 4222], sCI, 0, 'base', 35, rRI, undefined, 'Use the Bombling on the right to blow up the rock blocking the chest.'),
-                new Check([-5260, 4276], cI, 0, 'base', 36, mapI, [[lantern, boomerang]], 'Use the lantern to light the 4 torches that make the platforms to the chest rise or take a long detour' +
+                new Check([-5935, 4317], sCI, baseSU, yRI, [[slingshot, bow, clawshot, boomerang]], 'Use a long ranged item to kill the spiders and climb to the chest.'),
+                new Check([-5281, 4240], sCI, baseSU, rRI, undefined, 'Use the Bombling on the right to blow up the rock blocking the chest.'),
+                new Check([-5260, 4294], cI, baseSU, mapI, [[lantern, boomerang]], 'Use the lantern to light the 4 torches that make the platforms to the chest rise or take a long detour' +
                     'by the boomerang bridges to reach the chest.'),
-                new FakeCheck([-5261, 4547], ooccooI, 2, undefined, 'Use the Bombling to blow up the rocks, than pick up or break the pot containing Ooccoo.'),
-                new Check([-4710, 4794], cI, 0, 'base', 37, smaKeyI, undefined, 'Make your way across the windy bridge and open the chest on the left of the entrance.'),
-                new FakeCheck([-5228, 5108], lockI, 3, undefined, 'Locked door'),
-                new Check([-5445, 5093], cI, 0, 'base', 38, yRI, undefined, 'Swim to the opening and walk to the end to reach the chest.'),
-                new Check([-5155, 5200], sCI, 0, 'base', 39, yRI, undefined, 'The chest is under the wooden structure.'),
-                new Check([-5624, 3731], smaKeyI, 0, 'base', 40, undefined, undefined, 'Defeat the Big Baba to obtain the key.'),
-                new FakeCheck([-5869, 3737], lockI, 4, undefined, 'Locked door'),
-                new Check([-5467, 3883], cI, 0, 'base', 41, hPI, undefined, 'Defeat the Deku Like that blocks the way to access the chest.'),
-                new Check([-5277, 3480], cI, 0, 'base', 42, smaKeyI, undefined, 'Bonk on the pillar to make the chest fall.'),
-                new Check([-5224, 3223], sCI, 0, 'base', 43, rRI, undefined, 'Climb the vines to reach the chest.'),
-                new FakeCheck([-5309, 2940], lockI, 5, [lantern], 'Locked door'),
-                new Check([-4508, 4244], gBI, 0, 'base', 44, undefined, undefined, 'Defeat Ook to obtain the Gale Boomerang.'),
-                new Check([-5304, 3032], cI, 0, 'base', 45, hPI, [boomerang], 'Blow out all the torches to retract the platform blocking the chest.'),
-                new Check([-5386, 4224], cI, 0, 'base', 46, compaI, [[boomerang, bow, clawshot]], 'Use a long ranged item to break the web holding the chest.'),
-                new Check([-5439, 5006], bCI, 0, 'base', 47, bossKeyI, [boomerang], 'Use the boomerang on the windmill pillars in this pattern: Bottom Right, Bottom Left, Top Right and Top Left.' + 
+                new FakeCheck([-5261, 4565], ooccooI, ooccooSU, undefined, 'Use the Bombling to blow up the rocks, than pick up or break the pot containing Ooccoo.'),
+                new Check([-4710, 4812], cI, baseSU, smaKeyI, undefined, 'Make your way across the windy bridge and open the chest on the left of the entrance.'),
+                new FakeCheck([-5228, 5126], lockI, lockedDoorSU, undefined, 'Locked door'),
+                new Check([-5445, 5129], cI, baseSU, yRI, undefined, 'Swim to the opening and walk to the end to reach the chest.'),
+                new Check([-5155, 5218], sCI, baseSU, yRI, undefined, 'The chest is under the wooden structure.'),
+                new Check([-5624, 3749], smaKeyI, baseSU, undefined, undefined, 'Defeat the Big Baba to obtain the key.'),
+                new FakeCheck([-5869, 3755], lockI, lockedDoorSU, undefined, 'Locked door'),
+                new Check([-5467, 3901], cI, baseSU, hPI, undefined, 'Defeat the Deku Like that blocks the way to access the chest.'),
+                new Check([-5277, 3498], cI, baseSU, smaKeyI, undefined, 'Bonk on the pillar to make the chest fall.'),
+                new Check([-5224, 3241], sCI, baseSU, rRI, undefined, 'Climb the vines to reach the chest.'),
+                new FakeCheck([-5309, 2958], lockI, lockedDoorSU, [lantern], 'Locked door'),
+                new Check([-4508, 4262], gBI, baseSU, undefined, undefined, 'Defeat Ook to obtain the Gale Boomerang.'),
+                new Check([-5304, 3050], cI, baseSU, hPI, [boomerang], 'Blow out all the torches to retract the platform blocking the chest.'),
+                new Check([-5386, 4242], cI, baseSU, compaI, [[boomerang, bow, clawshot]], 'Use a long ranged item to break the web holding the chest.'),
+                new Check([-5439, 5042], bCI, baseSU, bossKeyI, [boomerang], 'Use the boomerang on the windmill pillars in this pattern: Bottom Right, Bottom Left, Top Right and Top Left.' + 
                     'This opens the gate to the boss key chest.'),
-                new Check([-4322, 4324], cI, 0, 'base', 48, smaKeyI, [[boomerang, bombBag, clawshot]], 'Grab a bombling or use one of your own bombs to defeat the Deku Like and jump across the platforms.'),
-                new FakeCheck([-4576, 5059], lockI, 6, [boomerang], 'Locked door'),
-                new Check([-4510, 5188], cI, 0, 'base', 49, rRI, undefined, 'Climb up the room by going in the back or simply get launched by the Tile Worm closest to the chest.'),
-                new NonCheck([-3930, 4790], fairyI),
-                new Check([-3773, 4824], hCI, 0, 'base', 50, undefined, [[woodenSword, bombBag, ballAndChain, bow], [boomerang, clawshot]], 'Defeat Diababa to obtain the heart container.'),
-                new Check([-3796, 4759], fusShaI, 0, 'base', 51, undefined, [[woodenSword, bombBag, ballAndChain, bow], [boomerang, clawshot]], 'Defeat Diababa to obtain the fused shadow.')
+                new Check([-4322, 4342], cI, baseSU, smaKeyI, [[boomerang, bombBag, clawshot]], 'Grab a bombling or use one of your own bombs to defeat the Deku Like and jump across the platforms.'),
+                new FakeCheck([-4576, 5077], lockI, lockedDoorSU, [boomerang], 'Locked door'),
+                new Check([-4510, 5206], cI, baseSU, rRI, undefined, 'Climb up the room by going in the back or simply get launched by the Tile Worm closest to the chest.'),
+                new NonCheck([-3930, 4808], fairyI, 'bottle'),
+                new FakeCheck([-3858, 4886], lockI, lockedDoorSU, undefined, 'Locked door.'),
+                new Check([-3773, 4842], hCI, baseSU, undefined, [[woodenSword, bombBag, ballAndChain, bow], [boomerang, clawshot]], 'Defeat Diababa to obtain the heart container.'),
+                new Check([-3796, 4777], fusShaI, baseSU, undefined, [[woodenSword, bombBag, ballAndChain, bow], [boomerang, clawshot]], 'Defeat Diababa to obtain the fused shadow.')
 
             ]]
         ]),
-        new Dungeon([-3660, 8193], [-3920, 8752], starI, 'Goron Mines', [ // Goron Mines
-            [[1, 1], [
-
+        new Dungeon([-3660, 8193], [-3920, 8752], starI, 'Goron Mines', [
+            [[1910, 1560], [
+                new Check([-5411, 5388], sCI, baseSU, rRI, undefined, 'Kill the Torch Slug to have access to the chest.'),
+                new Check([-4397, 5648], cI, baseSU, smaKeyI, undefined, 'Defeat the Bulblins to easily reach the chest.'),
+                new FakeCheck([-4097, 4494], lockI, lockedDoorSU, undefined, 'Locked door'),
+                new Check([-4006, 2811], gBK0I, giftsSU, undefined, undefined, 'Talk to goron elder Gor Amoto to obtain this part of the boss key.'),
+                new Check([-3974, 2711], cI, baseSU, mapI, undefined, 'The chest is behind the goron elder.'),
+                new Check([-3964, 2652], sCI, baseSU, rRI, undefined, 'The small chest is behind the goron elder, on the platform.'),
+                new FakeCheck([-4078, 2988], ooccooI, ooccooSU, undefined, 'Pick up the pot where Ooccoo is hiding for her to join you.'),
+                new Check([-3850, 4333], cI, baseSU, hPI, [ironBoots], 'Follow the left path when you get on the ceiling to reach the chest.'),
             ]],
-            [[1, 1], [
-
-            ]],
-            [[1, 1], [
-
+            [[2055, 1845], [
+                new Check([-5111, 4020], cI, baseSU, smaKeyI, [[ironBoots, magicArmor]], 'Use the iron boots or the depleted magic armor to sink down to the underwater chest.'),
+                new Check([-5006, 4005], sCI, baseSU, rRI, [ironBoots], 'Use the iron boots to follow the crystal path onto the platform where the chest lies.'),
+                new Check([-4934, 3694], cI, baseSU, hPI, [ironBoots], 'Follow the crystal path and take a left to reach the upper platform.'),
+                new FakeCheck([-4521, 3881], lockI, lockedDoorSU, undefined, 'Locked door'),
+                new Check([-4070, 3742], sCI, baseSU, smaKeyI, undefined, 'Follow the left barrier to not get noticed by the Beamos.'),
+                new Check([-3849, 4192], cI, baseSU, pRI, [[ironBoots, magicArmor]], 'The chest is behind a breakable wooden barrier underwater. However, you can simply go above the barrier by swimming.'),
+                new FakeCheck([-3966, 4342], lockI, lockedDoorSU, undefined, 'Locked door.'),
+                new Check([-3816, 5586], gBK1I, giftsSU, undefined, undefined, 'Talk to goron elder Gor Ebizo to obtain this part of the boss key.'),
+                new Check([-3857, 5700], sCI, baseSU, yRI, undefined, 'Go behind Gor Ebizo, to the right and use the stairs to climb the small platform.'),
+                new Check([-4043, 5204], sCI, baseSU, yRI, [ironBoots], 'Use the crystal path to reach the chest.'),
+                new Check([-5051, 4936], cI, baseSU, bowI, [ironBoots], 'Defeat Dangoro to gain access to the chest.'),
+                new Check([-5405, 4733], cI, baseSU, compaI, [bow], 'Defeat the Beamos and pull it to access the chest.'),
+                new Check([-5405, 5592], gBK2I, giftsSU, undefined, [bow], 'Defeat the beamos and pull it to have access to the room where Gor Liggs gives you a part of the boos key.'),
+                new Check([-5400, 5708], cI, baseSU, pRI, [bow], 'Defeat the beamos and pull it to have access to the room where the chest is, behind the goron elder.'),
+                new Check([-5963, 4363], cI, baseSU, pRI, [bow], 'Jump across to the platform to reach the chest.'),
+                new Check([-3648, 4228], cI, baseSU, pRI, [clawshot], 'Clawshot the vines from the door to the right of the room to reach the platform with the chest.'),
+                new NonCheck([-3698, 4214], fairyI, 'bottle'),
+                new FakeCheck([-4477, 3096], lockI, lockedDoorSU, undefined, 'Locked door.'),
+                new Check([-4583, 3066], hCI, baseSU, undefined, [bow], 'Defeat Fyrus to obtain the Heart Container.'),
+                new Check([-4630, 3160], fusShaI, baseSU, undefined, [bow], 'Defeat Fyrus to obtain the second Fused Shadow.')
             ]]
         ]),
         new Dungeon([-4741, 3415], [-4960, 4208], starI, 'Lakebed Temple', [
+            [[1317, 992], [ // B2
+                new Check([-4888, 5424], hCI, baseSU, undefined, [zoraArmor, bombBag, bow, clawshot, ironBoots, woodenSword], 'Defeat Morpheel to obtain the heart piece.'),
+                new Check([-5044, 5152], fusShaI, baseSU, undefined, [zoraArmor, bombBag, bow, clawshot, ironBoots, woodenSword], 'Defeat Morpheel to obtain the third and last Fused Shadow.')
+            ]],
+            [[2306, 1678], [ // B1
+                new Check([-4261, 4503], cI, baseSU, rRI, [zoraArmor, bombBag, bow], 'Make the water level rise once by clearing the top of the east portion of the temple to access the chest.'),
+                new Check([-3925, 5923], cI, baseSU, qI(bombsI, 5), [zoraArmor, bombBag, bow, ironBoots], 'Walk through the jet stream with the iron boots and take a left to the chest.'),
+                new Check([-4100, 5858], cI, baseSU, rRI, [zoraArmor, bombBag, bow, ironBoots], 'Walk away from the jet stream into the tunnel to reach the chest.'),
+                new Check([-4520, 2794], bCI, baseSU, bossKeyI, [zoraArmor, bombBag, bow, clawshot, ironBoots], 'In the room above, hang from the clawshot target and descend towards the chest.'),
+                //Fishing spot!
+                new FakeCheck([-4333, 4504], lockI, lockedDoorSU, undefined, 'Boss Door.'),
+                new NonCheck([-4296, 4503], fairyI, 'bottle')
+            ]],
+            [[2220, 1736], [ // 1F
+                new Check([-4505, 4578], sCI, baseSU, qI(arrowsI, 20), [zoraArmor, bombBag, bow], 'The chest is accessible when you first get into the room, go down the stairs and take a left.'),
+                new Check([-4240, 4617], cI, baseSU, mapI, [zoraArmor, bombBag, bow], 'The chest is accessible when you first get into the room, manipulate the stairs to reach it.'),
+                new Check([-4491, 5698], cI, baseSU, smaKeyI, [zoraArmor, bombBag, bow], 'Knock down the stalactite with bomb arrows to make a platform to jump to the chest.'),
+                new Check([-4165, 5768], cI, baseSU, smaKeyI, [zoraArmor, bombBag, bow], 'Kill the Chus to have an easier time accessing the chest.'),
+                new FakeCheck([-4328, 5932], lockI, lockedDoorSU, undefined, 'Locked door'),
+                new Check([-3724, 5535], cI, baseSU, clawI, [zoraArmor, bombBag, bow, [ironBoots, clawshot]], 'Defeat Deku Toad to make it spit out the chest.'),
+                new Check([-4279, 3361], sCI, baseSU, qI(watBomI, 10), [zoraArmor, bombBag, bow, clawshot], 'Jump on the hanging platform than shoot the clawshot at the target above the platform with the chest.'),
+                new Check([-4716, 5555], cI, baseSU, hPI, [zoraArmor, bombBag, bow, clawshot], 'Once the water level is elevated in the room, press on the switch to open the gate and clawshot the target on the ' + 
+                    'back wall to reach the chest. Clawshot the target on the ceiling to get back out.'),
+                new Check([-4399, 2584], sCI, baseSU, qI(bombsI, 5), [zoraArmor, bombBag, bow, clawshot], 'In the section with the entrance to the long tunnel, swim up to find to chest.')
+
+            ]],
+            [[2905, 1750], [ // 2F
+                new Check([-5509, 4199], sCI, baseSU, qI(arrowsI, 20), [zoraArmor], 'The chest is between the 2 rock pillars'),
+                new Check([-5601, 4339], sCI, baseSU, qI(watBomI, 10), [zoraArmor], 'The chest is on the right of the nearby rock pillar.'),
+                new Check([-4950, 4501], sCI, baseSU, qI(watBomI, 10), [zoraArmor, bombBag, bow], 'Knock down the stalactites with bomb arrows and climb to the chest.'),
+                new FakeCheck([-4490, 4552], ooccooI, ooccooSU, [zoraArmor, bombBag, bow], 'Pick up or break the pot where Ooccoo is hiding.'),
+                new FakeCheck([-4372, 4666], lockI, lockedDoorSU, undefined, 'Locked door.'),
+                new Check([-4487, 5223], sCI, baseSU, qI(bombsI, 5), [zoraArmor, bombBag, bow], 'On the left when you enter the room from the lobby.'),
+                new Check([-4585, 5497], cI, baseSU, smaKeyI, [zoraArmor, bombBag, bow], 'Go around the room and cross by the middle section to reach the chest.'),
+                new FakeCheck([-4425, 6048], lockI, lockedDoorSU, undefined, 'Locked door.'),
+                new NonCheck([-4533, 5253], fairyI, 'bottle'),
+                new Check([-4373, 4363], cI, baseSU, hPI, [zoraArmor, bombBag, bow, clawshot], 'The chest is on the chandelier hanging from the ceiling, use the clawshot to get there.'),
+                new Check([-4223, 3363], sCI, baseSU, rRI, [zoraArmor, bombBag, bow, clawshot], 'Once on the highest vine platform, clawshot the target above the platform where the chest is.'),
+                new Check([-4212, 3451], cI, baseSU, qI(bombsI, 20), [zoraArmor, bombBag, bow, clawshot], 'After activating the water, go back the way you came from through the waterwheel to find the chest.'),
+                new Check([-4583, 2965], cI, baseSU, rRI, [zoraArmor, bombBag, bow, clawshot, ironBoots], 'Defeat the enemies underwater to have easier access to the chest.'),
+                new Check([-4561, 3301], sCI, baseSU, rRI, [zoraArmor, bombBag, bow, clawshot], 'Go through the middle room accross the spinning gears to get the chest.'),
+
+            ]],
+            [[2904, 203], []], // 3F
+            [[2904, 203], [ // 4F
+                new Check([-4871, 6213], sCI, baseSU, qI(bombsI, 10), [zoraArmor, bombBag, bow], 'Go to the top of the room to reach the chest.'),
+                new Check([-4959, 2309], sCI, baseSU, qI(bombsI, 10), [zoraArmor, bombBag, bow, clawshot], 'Go to the top of the room using the clawshot targets to reach the chest.'),
+                new Check([-4902, 2020], cI, baseSU, compaI, [zoraArmor, bombBag, bow, clawshot], 'Clawshot the target on the wall behind the chest to reach it.'),
+                new Check([-4920, 6504], cI, baseSU, pRI, [zoraArmor, bombBag, bow, clawshot], 'Clawshot the target on the wall behind the chest to reach it.')
+
+            ]],
+        ]),
+        new Dungeon([-3865, 605], [-4500, 1488], starI, "Arbiter's Grounds", [
+            [[1, 1], [ // B2
+
+            ]],
+            [[1, 1], [ // B1
+
+            ]],
+            [[1, 1], [
+
+            ]],
+            [[1, 1], [
+
+            ]],
             [[1, 1], [
 
             ]],
@@ -1055,47 +1483,39 @@ document.addEventListener("DOMContentLoaded", function() {
 
             ]]
         ]),
-        new Dungeon([-3865, 605], [-4500, 1488], starI, "Arbiter's Grounds", [
-            [[1, 1], [
-
-            ]],
-            [[1, 1], [
-
-            ]],
-        ]),
         new Dungeon([-2626, 1229], [-2960, 2112], starI, 'Snowpeak Ruins', [
             [[1467, 1785], [                    
-                new Check([-5983, 4430], sCI, 6, 'base', 6, sRI, [ballAndChain], "Break the armor with the Ball and Chain to reveal the chest."),
-                new Check([-6014, 4100], sCI, 7, 'base', 7, yRI, [ballAndChain], "Break the armor with the Ball and Chain to reveal the chest."),
-                new Check([-5849, 3965], cI, 8, 'base', 8, undefined, undefined, "TODO"),
-                new Check([-5300, 3828], sCI, 10, 'base', 10, undefined, undefined, "TODO"),
-                new Check([-5410, 3987], cI, 11, 'base', 11, undefined, undefined, "TODO"),
-                new Check([-4072, 4270], bACI, 12, 'base', 12, undefined, undefined, "TODO"),
-                new Check([-4955, 4382], sCI, 13, 'base', 13, undefined, undefined, "TODO"),
-                new Check([-4954, 4936], sCI, 14, 'base', 14, undefined, undefined, "TODO"),
-                new Check([-5402, 4925], sCI, 15, 'base', 15, undefined, undefined, "TODO"),
-                new Check([-3636, 4272], cI, 16, 'base', 16, undefined, undefined, "TODO"),
-                new Check([-4673, 3646], sCI, 18, 'base', 18, undefined, undefined, "TODO"),
-                new Check([-4536, 4306], sCI, 19, 'base', 19, undefined, undefined, "TODO"),
-                new FakeCheck([-5381, 5064], ooccooI, 0, undefined, "Pick up the pot where Ooccoo is hiding."),
-                new Check([-4878, 5634], cI, 21, 'base', 21, undefined, undefined, "TODO"),
-                new Check([-5576, 4264], soulI, 23, 'poes', 0, undefined, [shadowCrystal], "The poe is above the ice in the open."),
-                new Check([-5433, 4663], sCI, 24, 'base', 24, undefined, undefined, "TODO"),
-                new Check([-6462, 4818], soulI, 25, 'poes', 1, undefined, [ballAndChain, shadowCrystal], "Break the armor with the Ball and Chain to reveal the poe."),
-                new Check([-5108, 4346], mapI, 27, 'gifts', 20, undefined, undefined, "Talk to Yeta to obtain the dungeon map."),
-                new FakeCheck([-4611, 3842], lockI, 1, undefined, "Locked door icon, will probably change")
+                new Check([-5983, 4430], sCI, baseSU, sRI, [ballAndChain], "Break the armor with the Ball and Chain to reveal the chest."),
+                new Check([-6014, 4100], sCI, baseSU, yRI, [ballAndChain], "Break the armor with the Ball and Chain to reveal the chest."),
+                new Check([-5849, 3965], cI, baseSU, undefined, undefined, "TODO"),
+                new Check([-5300, 3828], sCI, baseSU, undefined, undefined, "TODO"),
+                new Check([-5410, 3987], cI, baseSU, undefined, undefined, "TODO"),
+                new Check([-4072, 4270], bACI, baseSU, undefined, undefined, "TODO"),
+                new Check([-4955, 4382], sCI, baseSU, undefined, undefined, "TODO"),
+                new Check([-4954, 4936], sCI, baseSU, undefined, undefined, "TODO"),
+                new Check([-5402, 4925], sCI, baseSU, undefined, undefined, "TODO"),
+                new Check([-3636, 4272], cI, baseSU, undefined, undefined, "TODO"),
+                new Check([-4673, 3646], sCI, baseSU, undefined, undefined, "TODO"),
+                new Check([-4536, 4306], sCI, baseSU, undefined, undefined, "TODO"),
+                new FakeCheck([-5381, 5064], ooccooI, ooccooSU, undefined, "Pick up the pot where Ooccoo is hiding."),
+                new Check([-4878, 5634], cI, baseSU, undefined, undefined, "TODO"),
+                new Check([-5576, 4264], poeSoulI, poesSU, undefined, [shadowCrystal], "The poe is above the ice in the open."),
+                new Check([-5433, 4663], sCI, baseSU, undefined, undefined, "TODO"),
+                new Check([-6462, 4818], poeSoulI, poesSU, undefined, [ballAndChain, shadowCrystal], "Break the armor with the Ball and Chain to reveal the poe."),
+                new Check([-5108, 4346], mapI, giftsSU, undefined, undefined, "Talk to Yeta to obtain the dungeon map."),
+                new FakeCheck([-4611, 3842], lockI, lockedDoorSU, undefined, "Locked door icon, will probably change")
             ]],
             [[1431, 1347], [
-                new Check([-6348, 4666], cI, 5, 'base', 5, undefined, undefined, "TODO"),
-                new Check([-5140, 3828], cI, 9, 'base', 9, undefined, undefined, "TODO"),
-                new Check([-4448, 3827], cI, 17, 'base', 17, undefined, undefined, "TODO"),
-                new Check([-5738, 5566], soulI, 20, 'poes', 2, undefined, [ballAndChain, shadowCrystal], "Break the ice blocks with the Ball and Chain to reveal the poe."),
-                new Check([-4936, 5519], sCI, 22, 'base', 22, undefined, undefined, "TODO")
+                new Check([-6348, 4666], cI, baseSU, undefined, undefined, "TODO"),
+                new Check([-5140, 3828], cI, baseSU, undefined, undefined, "TODO"),
+                new Check([-4448, 3827], cI, baseSU, undefined, undefined, "TODO"),
+                new Check([-5738, 5566], poeSoulI, poesSU, undefined, [ballAndChain, shadowCrystal], "Break the ice blocks with the Ball and Chain to reveal the poe."),
+                new Check([-4936, 5519], sCI, baseSU, undefined, undefined, "TODO")
 
             ]],
             [[622, 427], [
-                new Check([-5162, 4878], hCI, 4, 'base', 4, undefined, [ballAndChain], "Defeat Blizzeta to obtain the Heart Container."),
-                new Check([-5268, 4680], shardI, 26, 'base', 26, undefined, [ballAndChain], "Defeat Blizzeta and leave the dungeon via the Midna warp to obtain the Mirror Shard.")
+                new Check([-5162, 4878], hCI, baseSU, undefined, [ballAndChain], "Defeat Blizzeta to obtain the Heart Container."),
+                new Check([-5268, 4680], shardI, baseSU, undefined, [ballAndChain], "Defeat Blizzeta and leave the dungeon via the Midna warp to obtain the Mirror Shard.")
             ]]
         ]), 
         new Dungeon([-6618, 3681], [-6580, 4425], starI, 'Temple of Time', [
@@ -1122,10 +1542,16 @@ document.addEventListener("DOMContentLoaded", function() {
             ]],
             [[1, 1], [
 
-            ]],
+            ]]
         ]),
         new Dungeon([-5306, 3144], [-5472, 3840], starI, 'City in the Sky', [
-            [[1, 1], [
+            [[1, 1], [ // B3
+
+            ]],
+            [[1, 1], [ // B2
+
+            ]],
+            [[1, 1], [ // B1
 
             ]],
             [[1, 1], [
@@ -1134,6 +1560,15 @@ document.addEventListener("DOMContentLoaded", function() {
             [[1, 1], [
 
             ]],
+            [[1, 1], [
+
+            ]],
+            [[1, 1], [
+
+            ]],
+            [[1, 1], [
+
+            ]]
         ]),
         new Dungeon([-3636, 602], [-3800, 1472], mirI, 'Palace of Twilight', [ 
             [[1, 1], [
@@ -1142,8 +1577,20 @@ document.addEventListener("DOMContentLoaded", function() {
             [[1, 1], [
 
             ]],
+            [[1, 1], [
+
+            ]],
+            [[1, 1], [
+
+            ]]
         ]),
         new Dungeon([-3250, 4712], [0,0], castleI, 'Hyrule Castle', [
+            [[1, 1], [
+
+            ]],
+            [[1, 1], [
+
+            ]],
             [[1, 1], [
 
             ]],
@@ -1156,268 +1603,154 @@ document.addEventListener("DOMContentLoaded", function() {
         ])        
     ];
     console.timeEnd('Checks Creation');
-    for(var i = 0; i < settings.length; i++) {
-        if (settingsFlags[i] == '1') {
-            settings[i].checked = true;
-            switch(i) {
-                case 1: visibleCategories.push('base'); break;
-                case 2: visibleCategories.push('poes'); break;
-                case 3: visibleCategories.push('bugs'); break;
-                case 4: visibleCategories.push('gifts'); break;
-                case 5: visibleCategories.push('skyc'); break;
-                case 6: visibleCategories.push('skills'); break;
-                case 7: visibleCategories.push('shop'); break;
-                case 9: visibleCategories.push('fake'); break;
-           }
-        }   
-    }
-    // Adding Dungeon Floor Buttons Logic
-    for(let i = 0; i < 8; ++i) {
-        let floor = document.getElementById('F' + (i + 1));
-        floor.addEventListener("click", function () {
-            mapState == 2 ? removeAllLayers() : removeAllLayersExceptTL();
-            resetFloorButtons();
-            floor.style.filter = 'brightness(200%)';
-            floor.style.width = "102.5%";
-            floor.style.height = "102.5%";
-            floor.style.marginLeft = "-1%";
-            activeFloor = i + 1;
-            loadedDungeon[i].load();             
-        });
-        floor.addEventListener('contextmenu', function() {
-            if (loadedDungeon[i].isMarked())
-                loadedDungeon[i].unset();
-            else
-                loadedDungeon[i].set();
-        });
-        floor.addEventListener('mouseover', function() {
-            if (activeFloor - 1 == i) 
-                return;
-            mapState == 2 ? removeAllLayers() : removeAllLayersExceptTL();
-            loadedDungeon[i].load();  
-        });
-        floor.addEventListener('mouseout', function() {
-            if (map.getZoom() < -2) 
-                return;
-            if (activeFloor - 1 == i) 
-                return;
-            mapState == 2 ? removeAllLayers() : removeAllLayersExceptTL();
-            loadedDungeon[activeFloor - 1].load();
-        });
-    }
-    // Creating Provinces
-    provinces[0] = new Province([ // Ordona
-        [-8053, 5568], [-7628, 6232], [-8208, 6872], [-8776, 7160], [-9752, 6952], [-9876, 6564], [-9976, 5776], [-9924, 5088], 
-        [-9750, 4672], [-8792, 4338], [-7853, 4693]
-    ], false, [-8816, 5664], [0, 500]);
-    provinces[1] = new Province([ // Faron
-        [-5412, 5564], [-5374, 5998], [-5954, 6282], [-5944, 7028], [-6700, 7216], [-7144, 6960], [-8048, 5568], [-7844, 4680],
-        [-7360, 4200], [-6640, 3464], [-6360, 3744], [-5944, 3776], [-5834, 4743], [-5630, 4883]
-    ], false, [-6512, 5536], []);
-    provinces[2] = new Province([ // Eldin
-        [-5952, 6280], [-5936, 7020], [-5904, 7676], [-6044, 8248], [-5952, 8836], [-5612, 9452], [-5212, 9544], [-4584, 9492], 
-        [-3932, 9572], [-3340, 9472], [-2956, 9196], [-2460, 9040], [-1972, 8608], [-1404, 8006], [-1228, 7352], [-2164, 7080], 
-        [-2772, 7060], [-2989, 7110], [-3281, 6985], [-3432, 6760], [-3580, 6472], [-3748, 6372], [-3932, 6324], [-4276, 6340], 
-        [-4419, 6316], [-4680, 6260], [-5060, 5972], [-5332, 6004],
-    ], false, [-4096, 7904], [2]);
-    provinces[3] = new Province([ // Desert
-        [-6646, 3472], [-6704, 2448], [-6584, 1152], [-6208, 880], [-5240, 1000], [-3668, 1256], [-3480, 1804], [-3646, 2242], 
-        [-3804, 2924], [-3840, 3154], [-4984, 3264], [-5116, 3148], [-5280, 3184], [-5472, 3256], [-5640, 3424], [-5953, 3742],
-        [-6336, 3736]
-    ], false, [-5440, 2224], []);
-    provinces[4] = new Province([ // Peak
-        [-712, 5344], [-1132, 5392], [-1296, 5360], [-1548, 5152], [-1690, 4891], [-1892, 4804], [-2076, 4624], [-2564, 4404], 
-        [-2704, 4220], [-3036, 4080], [-3624, 3880], [-3812, 3184], [-3636, 2272], [-3436, 1720], [-2668, 1568], [-2092, 1804], 
-        [-1696, 2288], [-852, 2616], [-620, 3676], [-584, 4612]
-    ], false, [-1744, 3488], [])
-    let castlePoints = [
-        [-2798, 5430], [-2863, 5622], [-2940, 5472], [-3184, 5586], [-3188, 5550], [-3362, 5552], [-3357, 5551], [-3357, 5588], 
-        [-3225, 5632], [-3481, 5705], [-3556, 5756], [-3558, 5664], [-3653, 5729], [-3370, 5828], [-3702, 5958], [-3707, 5907], 
-        [-3782, 5912], [-3938, 5914], [-3938, 4990], [-3788, 4994], [-3707, 4986], [-3706, 4940], [-3358, 5074], [-3649, 5173], 
-        [-3558, 5242], [-3552, 5158], [-3218, 5266], [-3360, 5325], [-3359, 5348], [-3184, 5345], [-3180, 5304], [-2936, 5440]];
-    provinces[5] = new Province([[ // Lanayru
-        [-5400, 5584], [-5360, 6000], [-5056, 5968], [-4640, 6248], [-4312, 6336], [-3696, 6344], [-3528, 6472], [-3424, 6728], 
-        [-3280, 6968], [-2992, 7104], [-2760, 7048], [-2096, 7072], [-1248, 7328], [-800, 7216], [-584, 6768], [-480, 6368], 
-        [-504, 5832], [-606, 5444], [-722, 5358], [-1104, 5408], [-1288, 5376], [-1554, 5161], [-1704, 4896], [-1894, 4812], 
-        [-2077, 4634], [-2539, 4431], [-2749, 4205], [-3632, 3892], [-3764, 3420], [-3820, 3180], [-4288, 3200], [-4974, 3290],
-        [-5081, 3201], [-5319, 3218], [-5592, 3400], [-5936, 3768], [-5813, 4728], [-5776, 4750], [-5624, 4872], [-5552, 5096]
-    ], castlePoints], false, [-2192, 5984], [0, 1, 500]);
-    provinces[6] = new Province(castlePoints, true, [-3584, 5440], []); // Castle
+    console.timeEnd('Start');
 
-    loadMainMap(); 
+    loadImageMap(); 
 
 
     function onMapClick(e) {
-        navigator.clipboard.writeText("[" + Math.round(e.latlng.lat) + ", " + e.latlng.lng + "]")
+        navigator.clipboard.writeText("[" + Math.round(e.latlng.lat) + ", " + Math.round(e.latlng.lng) + "]")
     }
     map.on('click', onMapClick);
-    console.timeEnd('Start');
+    
 });
 
     
-
-    
-    
-function loadMainMap() {
+//Map Functions 
+function loadImageMap() {
+    if (map.getZoom() != -5)
+        return;
     mapState = 0;
-    document.getElementById('made').style.display = 'block';
+    document.getElementById('made').style.display = 'block';   
+    map.setView([0, 0], -4);
     map.setMinZoom(-4);
     map.dragging.disable();
-    L.imageOverlay('MainMap/omx4.png', [[0, 0], [-10336, 10176]]).addTo(map); 
-    map.setMaxBounds([[0, 0], [-10336, 10176]]);
-    map.on("zoomend", zoomToProvinces);
-    for (let i = 0; i < provinces.length; ++i)
-        provinces[i].load();
-    for (let i = submaps.length - 9; i < submaps.length - 1; ++i)
-        submaps[i].loadIcon();
-    if (!getFlag('settings', 16) && document.getElementById('tracker').style.visibility == 'visible')
+    map.setMaxBounds([[0, 0], [-10336, 10176]]); 
+    map.off('zoomend', loadImageMap);    
+    map.on("zoomend", loadTilemapFromImageMap);
+    loadImageIcons(); 
+    if (document.getElementById('check').style.visibility == 'visible')
+        hideDetails();
+    if (!settingIsChecked('trackerOverlapS') && document.getElementById('tracker').style.visibility == 'visible')
         updateMapSize('100vw');  
 }
-function loadProvinces() {
-    if (mapState == 0 && !getFlag('settings', 16) &&
-        document.getElementById('tracker').style.visibility == 'visible')
-        updateMapSize('71vw');  
+function loadTilemapFromImageMap() {
+    if (map.getZoom() <= -4)
+        return;
     mapState = 1;
+    document.getElementById('made').style.display = 'none'; 
+    map.dragging.enable();             
     map.setMinZoom(-5);
-    document.getElementById('made').style.display = 'none';
+    map.setMaxBounds([[500, -500], [-10000, 9000]]); 
+    map.off('zoomend', loadTilemapFromImageMap);
+    map.on('zoomend', loadImageMap); 
+    removeAllLayers();  
     TL.addTo(map); 
-    loadMainIcons(); 
-    map.on('zoomend', dezoomToMainMap);  
-    map.setMaxBounds([[500, -500], [-10000, 9000]]);  
-    
+    loadTLIcons(); 
+
+    let cpt = 0;
+    map.eachLayer(function(layer){
+        ++cpt; 
+    });
+    console.log('Number of Markers on Tilemap: ' + --cpt);
+
+    if (!settingIsChecked('trackerOverlapS') && document.getElementById('tracker').style.visibility == 'visible') 
+        updateMapSize('71vw');  
 }
-function loadMainIcons() {
-    for (let i = 0; i < checks.length; ++i) {
-        checks[i].load();
-    }
-    for (let i = 0; i < submaps.length; ++i) {
-        submaps[i].loadIcon();
-    }
+function loadImageIcons() {
+    removeAllLayers();
+    L.imageOverlay('MainMap/omx4.png', [[0, 0], [-10336, 10176]]).addTo(map);
+    for (let i = 0; i < provinces.length; ++i)
+        provinces[i].load();
+    for (let i = 0; i < dungeons.length - 1; ++i)
+        dungeons[i].loadIcon();
 }
-function loadSubmap(pos) {
-    mapState = 3;
-    map.setView(pos, 0);     
-    map.dragging.disable();
-    TL.setOpacity(0.2);
-    removeAllLayersExceptTL();
-    map.on('zoomend', exitSubmap);
+function loadTLIcons() {
+    for (let i = 0; i < provinces.length; ++i)
+        provinces[i].loadIcons();
+    for (let i = 0; i < dungeons.length; ++i) 
+        dungeons[i].loadIcon();
 }
 function exitSubmap() {
     if (map.getZoom() == 0)
         return;
     map.off('zoomend', exitSubmap);  
-    if (mapState == 4) {
-        for (let i = 1; i <= loadedDungeon.length; ++i) 
-            document.getElementById("F" + i).style.display = 'none';
-        document.getElementById('dun').style.display = 'none'
-    }
+    if (mapState == 4)
+        hideDungeonUI();
     removeAllLayersExceptTL();
     map.setMinZoom(-5);
     map.dragging.enable();
     mapState = 1;
     TL.setOpacity(1);
-    loadMainIcons();
+    loadTLIcons();
 }
 function exitDungeon() {
     if (map.getZoom() >= -2)
         return;
-    for (let i = 1; i <= loadedDungeon.length; ++i) 
-        document.getElementById("F" + i).style.display = 'none';
-    document.getElementById('dun').style.display = 'none'
-    dn.style.display = "none";
+    hideDungeonUI();
     removeAllLayers();
     window.removeEventListener('keydown', dungeonControls);
     map.off('zoomend', exitDungeon);
     mapState = 1;
     TL.addTo(map);
     map.setMaxBounds([[500, -500], [-10768, 9304]]);
-    loadMainIcons();
+    loadTLIcons();
 }
-function resetFloorButtons() {
-    for (let i = 1; i < loadedDungeon.length + 1; ++i) {
-        let floor = document.getElementById('F' + i);
-        floor.style.filter = 'brightness(100%)';
-        floor.style.width = "100%";
-        floor.style.height = "100%";
-        floor.style.marginLeft = "0%";
-    }  
+function hideDungeonUI() {
+    for (let i = floorOffset; i < this.loadedDungeon.length + floorOffset; ++i) {
+        floor = document.getElementById("F" + i);
+        floor.style.display = 'none';
+        floor.replaceWith(floor.cloneNode(true));
+    }
+    resetActiveFloorButton();
+    document.getElementById('dun').style.display = 'none'
+    document.getElementById("dn").style.display = "none";
+}
+function resetActiveFloorButton() {
+    let floor = document.getElementById('F' + (activeFloor + floorOffset));
+    floor.style.filter = 'brightness(100%)';
+    floor.style.width = "14.6vw";
+    floor.style.marginLeft = "0";
 }
 function dungeonControls(e) {
     if (!(e instanceof KeyboardEvent))
         return;
     var key = e.key;
     let prevFloor = activeFloor;
+    let newFloor = activeFloor;
     if (key == undefined)
         key = e.originalEvent.key;
     if (key == "ArrowDown" || key == 's') {
-        if (activeFloor == 1) 
-            activeFloor = loadedDungeon.length;         
+        if (newFloor == 0) 
+            newFloor = loadedDungeon.length - 1;         
         else
-            --activeFloor; 
+            newFloor = newFloor - 1; 
     }
     else if (key == 'ArrowUp' || key == 'w') {
-        if (activeFloor == loadedDungeon.length) 
-            activeFloor = 1;
+        if (newFloor == loadedDungeon.length - 1) 
+            newFloor = 0;
         else
-            ++activeFloor;
+            newFloor = newFloor + 1;
     }
     else if (key == 'e' || key == "ArrowRight") {
-        if (loadedDungeon[activeFloor - 1].isMarked())
-            loadedDungeon[activeFloor - 1].unset();
+        if (loadedDungeon[newFloor].allShownChecksAreSet())
+            loadedDungeon[newFloor].setAsUnmarked();
         else
-            loadedDungeon[activeFloor - 1].set();
+            loadedDungeon[newFloor].setAsMarked();
+        reloadIcons();
     }
-    // else if (key == 'q') {
-    //     if(dungeonPopup.isOpen()) {
-    //         map.closePopup(dungeonPopup);
-    //         visDunPop = false;
-    //     }
-    //     else {
-    //         map.openPopup(dungeonPopup);
-    //         visDunPop = true;
-    //     }
-    // }
-    if (activeFloor != prevFloor)
-        document.getElementById('F' + activeFloor).click();
+    if (newFloor != prevFloor) 
+        document.getElementById('F' + (newFloor + floorOffset)).click();
 }
-
-function zoomOnClick(e) {
-    map.setView(L.latLng(e.latlng.lat, e.latlng.lng), -2);  
+function reloadIcons() {
+    switch (mapState) {
+        case 0 : loadImageIcons(); break;
+        case 1 : removeAllLayersExceptTL(); loadTLIcons(); break;
+        case 2 : removeAllLayers(); loadedDungeon[activeFloor].load(); break;
+        case 3 : removeAllLayersExceptTL(); loadedDungeon.load(); break;
+        case 4 : removeAllLayersExceptTL(); loadedDungeon[activeFloor].load(); break;
+    }
 }
-function zoomToProvinces() {
-    if (map.getZoom() <= -4)
-        return;
-    map.dragging.enable();         
-    map.off('zoomend', zoomToProvinces);
-    removeAllLayers();
-    loadProvinces();
-}
-function dezoomToMainMap() {
-    if (map.getZoom() != -5)
-        return;
-    map.off('zoomend', dezoomToMainMap);    
-    map.setView([0, 0], -4);
-    hideDetails();
-    removeAllLayers();
-    loadMainMap();
-}
-// function mainPopupControls(e) {
-//     var key = e.key;
-//     if (key == undefined)
-//         key = e.originalEvent.key;
-
-//     if (key == 'q') {
-//         if(mainPopup.isOpen()) {
-//             map.closePopup(mainPopup);
-//             visMainPop = false;
-//         }
-//         else {
-//             map.openPopup(mainPopup);
-//             visMainPop = true;
-//         }
-//     }
-// }
-
 function removeAllLayers() {
     map.eachLayer(function(l) {
         map.removeLayer(l);
@@ -1429,37 +1762,17 @@ function removeAllLayersExceptTL() {
             map.removeLayer(l);
     });
 }  
-// function reset() {
-//     map.eachLayer(function(l) {
-//         if(l != mainPopup)
-//             map.removeLayer(l);
-//     });
-// }  
-// function resetDungeonFloor() {
-//     map.eachLayer(function(l) {
-//         if(l != dungeonPopup)
-//             map.removeLayer(l);
-//     });
-// }
 
-function reloadIcons() {
-    switch (mapState) {
-        case 0 : removeAllLayers(); loadMainMap(); break;
-        case 1 : removeAllLayersExceptTL(); loadMainIcons(); break;
-        case 2 : removeAllLayers(); loadedDungeon[activeFloor - 1].load(); break;
-        case 3 : removeAllLayersExceptTL(); loadedDungeon.load(); break;
-        case 4 : removeAllLayersExceptTL(); loadedDungeon[activeFloor - 1].load(); break;
-    }
-}
+// Menu Functions
 function hideDetails() {
-    var box = document.getElementById('check'); 
     document.getElementById('cinfo').style.visibility = "hidden";
     document.getElementById('van').style.display = "none"; 
     document.getElementById('reqs').style.display = "none";   
-    box.style.width = "0%";
+    var checkdiv = document.getElementById('check'); 
+    checkdiv.style.width = "0%";
     setTimeout(function() {
-        box.style.height = "0%";
-        box.style.visibility = "hidden";
+        checkdiv.style.height = "0%";
+        checkdiv.style.visibility = "hidden";
     }, 100);
     
     map.off('click', hideDetails);
@@ -1470,16 +1783,13 @@ function showRightMenu(menuID, width) {
         let cpts = document.getElementsByClassName('tcpt');
         for (let i = 0; i < cpts.length; ++i)
             cpts[i].style.display = 'inline';
-        if (!getFlag('settings', 16) && mapState > 0)
+        if (!settingIsChecked('trackerOverlapS') && mapState > 0)
             updateMapSize('71vw');
     }
     menu.style.visibility = "visible";
     menu.style.width = width;
     menu.style.height = "100%";
-    document.getElementById("setIcon").style.display = "none";
-    document.getElementById("contIcon").style.display = "none";
-    document.getElementById("trackerIcon").style.display = "none";
-    // document.getElementsByClassName("leaflet-popup-pane")[0].style.display = "none";
+    document.getElementById('menuicons').style.display = "none";
 }
 function hideRightMenu(menuID) {
     let menu = document.getElementById(menuID);
@@ -1487,30 +1797,109 @@ function hideRightMenu(menuID) {
         let cpts = document.getElementsByClassName('tcpt');
         for (let i = 0; i < cpts.length; ++i)
             cpts[i].style.display = 'none';
-        if (!getFlag('settings', 16))
+        if (!settingIsChecked('trackerOverlapS'))
             updateMapSize('100vw');
     }
     menu.style.width = "0%";
-    document.getElementById("setIcon").style.display = "inline";
-    document.getElementById("contIcon").style.display = "inline";
-    document.getElementById("trackerIcon").style.display = "inline";
-    // document.getElementsByClassName("leaflet-popup-pane")[0].style.display = "inline";
+    document.getElementById('menuicons').style.display = "inline";
     setTimeout(function() {
         menu.style.height = "0%";
         menu.style.visibility = "hidden";  
     }, 100);  
 }
-function iconSet(cat, index) {
-    if (settings[index].checked) {
+
+// Settings Functions
+function settingIsChecked(name) {
+    return document.getElementById(name).checked;
+}
+function verifyParentCheck(isChecked, name, parentIndex) {
+    let parent = document.getElementById(name);
+    if (isChecked && !parent.checked) {
+        parent.checked = true;
+        settingSU.setFlag(parentIndex, '1');
+    }      
+    else if (!isChecked && parent.checked) {
+        let children;
+        if (name == 'checkS')
+            children = ['baseS', 'poesS', 'giftsS', 'bugsS', 'skyS', 'skillS', 'shopS'];
+        else if (name == 'ncheckS')
+            children = ['ooccooS', 'locdoorS', 'notRupeeS'];
+        else if (name == 'nflagS')
+            children = ['bottleS', 'rshopS', 'grassS', 'monrupeeS', 'fishS']
+        for (let i = 0; i < children.length; ++i) {
+            if (document.getElementById(children[i]).checked)
+                return;
+        }
+        parent.checked = false;
+        settingSU.setFlag(parentIndex, '0');
+    }
+}
+function iconSet(isChecked, cat, index) {
+    settingSU.setFlag(index, isChecked ? '1': '0'); 
+    if (isChecked) 
         visibleCategories.push(cat);
-        setFlag('settings', index, '1');
-    }
-    else {
+    else 
         removeFromArray(visibleCategories, cat);
-        setFlag('settings', index, '0');
-    }
     reloadIcons();
 }
+function setChildren(isChecked, start, end) {
+    let settings = document.querySelectorAll("input[type='checkbox']");
+    settingSU.setFlag(start - 1, isChecked ? '1' : '0');
+    for (let i = start; i <= end; ++i) {
+        if (settings[i].checked != isChecked)
+            settings[i].click();
+    }
+}
+function setSettingsFlag(isChecked, index, reload) {
+    settingSU.setFlag(index, isChecked ? '1': '0'); 
+    if (reload)
+        reloadIcons();
+}
+function resetMap(button) {
+    for(let i = 0; i < provinces.length; ++i) 
+        provinces[i].resetAllFlags();
+    for(let i = 0; i < dungeons.length; ++i)
+        dungeons[i].resetAllFlags();
+    reloadIcons();  
+    resetButtonsFeedback(button, 'Map');
+}
+function resetTracker(button) {
+    for(let i = 0; i < trackerItems.length; ++i) {
+        let state = trackerItems[i].state;
+        if (i == 23) { // Wallet Special Case
+            if (state == 1)
+                continue;
+            state == 2 ? decreaseState(23) : increaseState(23);
+            continue;
+        }
+        if (state > 0) {
+            if (state < trackerItems[i].max / 2) {
+                for (let _ = state; _ > 0; --_)
+                    decreaseState(i);
+            }
+            else {
+                for (let _ = state; _ < trackerItems[i].max + 1; ++_)
+                    increaseState(i);
+            }
+        }
+    }
+    reloadIcons();  
+    resetButtonsFeedback(button, 'Tracker'); 
+}
+function resetButtonsFeedback(button, text) {
+    button.innerHTML = "Reset done!";
+    button.disabled = true;
+    button.classList.remove('setbh');
+    button.style.cursor = 'default';
+    setTimeout(function() {
+        button.innerHTML = "Reset " + text;
+        button.disabled = false;
+        button.classList.add('setbh');
+        button.style.cursor = 'pointer';
+    }, 1500);
+}
+
+// Tracker Functions
 function increaseState(traElemIndex) {
     let item = trackerItems[traElemIndex];
     let prevState = item.state;
@@ -1540,7 +1929,7 @@ function setTrackerFlag(index, state) {
         state = String.fromCharCode(state);
     else 
         state = state.toString();
-    setFlag('tracker', index, state);
+    trackerSU.setFlag(index, state);
 }
 function updateObtainedItems(item, prevState) {
     if (item.items == undefined)
@@ -1580,7 +1969,7 @@ function updateObtainedItems(item, prevState) {
             }
         }
     }
-    if(getFlag('settings', 14))
+    if(settingIsChecked('trackerS'))
         reloadIcons();
 }
 function updateTracker(item) {        
@@ -1626,6 +2015,8 @@ function updateTrackerImg(item) {
         (item.state == 0 ? 0 : item.state - 1) + imgSrc.slice(-4); 
 }
 
+
+// Util Functions
 function removeFromArray(array, item) {
     let i = array.indexOf(item);
         if (i > -1)
@@ -1638,51 +2029,6 @@ function getCounterIcon(icon, num) {
         html: '<img src="' + icon.options.iconUrl + '" width="' + icon.options.iconSize[0] + 'px"' +
               'height="' + icon.options.iconSize[1] + '"><div class="scc">' + num + '</div>'
     });
-}
-function resetMap(button) {
-    for(let i = 0; i < checks.length; ++i) {
-        if (checks[i].isSet())
-            checks[i].setAsUnmarked();
-    }
-    for(let i = 0; i < submaps.length; ++i) {
-        if (submaps[i].isMarked())
-            submaps[i].unmark();
-    }   
-    resetButtonsFeedback(button, 'Map');
-}
-function resetTracker(button) {
-    for(let i = 0; i < trackerItems.length; ++i) {
-        let state = trackerItems[i].state;
-        if (i == 23) { // Wallet Special Case
-            if (state == 1)
-                continue;
-            state == 2 ? decreaseState(23) : increaseState(23);
-            continue;
-        }
-        if (state > 0) {
-            if (state < trackerItems[i].max / 2) {
-                for (let _ = state; _ > 0; --_)
-                    decreaseState(i);
-            }
-            else {
-                for (let _ = state; _ < trackerItems[i].max + 1; ++_)
-                    increaseState(i);
-            }
-        }
-    }
-    resetButtonsFeedback(button, 'Tracker');   
-}
-function resetButtonsFeedback(button, text) {
-    button.innerHTML = "Reset done!";
-    button.disabled = true;
-    button.classList.remove('setbh');
-    button.style.cursor = 'default';
-    setTimeout(function() {
-        button.innerHTML = "Reset " + text;
-        button.disabled = false;
-        button.classList.add('setbh');
-        button.style.cursor = 'pointer';
-    }, 1500);
 }
 function updateMapSize(width) {
     map.getContainer().style.width = width;
