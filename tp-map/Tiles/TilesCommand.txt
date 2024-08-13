@@ -1,1 +1,0 @@
-gdal2tiles.py -p raster --xyz -z 0-6 -w leaflet map.png Tiles
