@@ -1,0 +1,46 @@
+body {
+   background-color: #1d1a14;
+   color: #c0c0c0
+}
+#name {
+    text-align: center;
+    font-size: 8vmin;
+}
+.menuimg {
+    top: 0;
+    position: absolute;
+    width: 3.5vw;
+    border-style: solid;
+    border-color: #c0c0c0;
+    border-radius: 7px;
+    padding: 7px;
+}
+.hover:hover {
+    background-color: #353535;
+}
+#cv {
+    left: 0;
+}
+#github {
+    right: 0;
+}
+#cv img, #github img {
+    max-width: 100%;
+}
+#projects {
+    font-size: 4.5vmin;
+}
+li {
+    font-size: 3vmin;
+    padding-bottom: 2vh;
+}
+li a {
+    color: #c0c0c0;
+    font-weight: bold;
+    text-decoration: none;
+    font-size: 3.5vmin;
+    border-style: solid;
+    border-color: #c0c0c0;
+    border-radius: 7px;
+    padding: 2px 5px;
+}

@@ -3,19 +3,34 @@
 <head>
   <meta charset="UTF-8">
   <title>DarkZant</title>
+  <link rel="icon" href="Images/Midna.png">
+  <link rel="stylesheet" href="index.css">
+
 </head>
-<body style = "background-color: black";>
+<body>
     <main>
-        <h1 style = "color: white;">Link to my 
-            <a href="https://darkzant.github.io/CV.pdf" style="color:aqua">CV</a>
-        </h1>
-        <h1 style = "color: white;">Link to my 
-            <a href="https://darkzant.github.io/tp-map/" style="color:aqua">Twilight Princess Interactive Map</a>
-        </h1>
-        <h1 style = "color: white;">Link to an 
-            <a href="https://medinammartin3.github.io/OnlineShop/index.html" style="color:aqua">Online Shopping Website</a>
-            I made for a University class
-        </h1>
+        <a class="menuimg hover" id="cv" href="CV.pdf">
+            <img src="Images/CV.png">
+        </a>
+        <a class="menuimg hover" id="github" href="https://github.com/darkzant">
+            <img src="Images/Github.png">
+        </a>
+        <h1 id="name">Étienne Mitchell-Bouchard</h1>
+        <h1 id="projects"><u>Web Projects</u></h1>
+        <ul>
+            <li>
+                <a class="hover" href="https://darkzant.github.io/tp-map">tp-map</a>
+                , an interactive map for the game The Legend of Zelda: Twilight Princess
+            </li>
+            <li>
+                <a class="hover" href="https://darkzant.github.io/matrix-robot">matrix-robot</a>
+                , a robot created and animated purely using matrix calculations
+            </li>
+            <li>
+                <a class="hover" href="https://medinammartin3.github.io/TP3_IFT1005/">Online Shop</a>
+                , an online shopping website
+            </li>
+        </ul>
     </main>
 </body>
 </html>
