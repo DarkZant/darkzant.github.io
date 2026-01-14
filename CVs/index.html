@@ -1,72 +1,102 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>CVs</title>
-  <link rel="icon" href="../Images/CV.png">
-  <style>
-    body {
-        background-color: #1d1a14;
-        margin: 0;
-        overflow: hidden;
-        font-family: "Futura", "Sans-serif";
-    }
-    main {
-        width: 100dvw;
-        height: 100dvh;
-        display: flex;      
-    }
-    a {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #c0c0c0;
-        font-size: 5vmax;
-        text-decoration: none;
-    }
-    a:hover {
-        background-color: #2f2f2f;
-        text-decoration: underline;
-        color: #dadada;
-    }
-    #separator {
-        background-color: #c0c0c0;
-        border-radius: 2vmax;
-    }
-    @media (max-aspect-ratio: 1/1) {
+    <meta charset="UTF-8">
+    <title>CVs</title>
+    <link rel="icon" href="../Images/CV.png">
+    <style>
+        body {
+            background-color: #1d1a14;
+            margin: 0;
+            overflow: hidden;
+            font-family: "Futura", "Sans-serif";
+        }
         main {
-            flex-direction: column;
+            width: 100dvw;
+            height: 100dvh;
+            display: flex;      
         }
         a {
-            width: 100%;
-            height: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #c0c0c0;
+            font-size: 5vmax;
+            text-decoration: none;
+        }
+        a:hover {
+            background-color: #2f2f2f;
+            text-decoration: underline;
+            color: #dadada;
         }
         #separator {
-            width: 100%;    
-            height: 0.5%; 
+            background-color: #c0c0c0;
+            border-radius: 2vmax;
         }
-    }
-
-    @media (min-aspect-ratio: 1/1) {
-        main {
-            flex-direction: row;
+        #logo {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #1d1a14;
+            padding: clamp(13px, 0.8vmin, 20px);
+            border-radius: 10px;
         }
-        a {
-            width: 50%;
-            height: 100%;
+        #logo img {
+            max-width: 100%;
+            max-height: 100%;
         }
-        #separator {
-            width: 0.5%;   
-            height: 100%;
+        /* Horizontal layout (Phone) */
+        @media (max-aspect-ratio: 1/1) {
+            main {
+                flex-direction: column;
+            }
+            a {
+                width: 100%;
+                height: 50%;
+            }
+            #separator {
+                width: 100%;    
+                height: 0.5%; 
+            }
+            #logo {
+                height: 7.5dvh;
+                border: 0.4dvh solid #c0c0c0;
+            }
         }
-    }
-  </style>
-
+        /* Vertical layout */
+        @media (min-aspect-ratio: 1/1) {
+            main {
+                flex-direction: row;
+            }
+            a {
+                width: 50%;
+                height: 100%;
+            }
+            #separator {
+                width: 0.5%;   
+                height: 100%;
+            }
+            #logo {
+                width: 7.5%;
+                border: 0.4dvw solid #c0c0c0;
+            }
+        }
+        /* Touch devices */
+        @media (hover: none) and (pointer: coarse) {
+            a {
+                text-decoration: underline;
+            }
+        }
+    </style>
 </head>
 <body>
     <main>
        <a id="fr" href="CV_FR.pdf">Français</a>
        <div id="separator"></div>
+       <div id="logo">
+            <img src="../Images/CV.png" alt="CV-Logo">
+       </div>
        <a id="en" href="CV_EN.pdf">English</a> 
     </main>
 </body>
