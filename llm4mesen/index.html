@@ -23,13 +23,28 @@
         }
         h1 {
             font-size: 5vmax;
-            text-decoration: underline;
             margin: 0;
         }
         h2 {
             font-size: 2vmax;
-            max-width: 60%;
+            max-width: 55%;
             margin: 0;
+        }
+        #desc {
+            text-align: center;
+        }
+        #desc a {
+            color: #c0c0c0;
+        }
+        #desc a:hover {
+            color: #f1f1f1;
+        }
+        #links {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            column-gap: 5dvw;
         }
         a {
             color: #24bcfd
@@ -37,15 +52,29 @@
         a:hover {
             color: #0033fd;
         }
+        iframe {
+            width: 32.5%;
+            min-width: 400px;
+            aspect-ratio: 4 / 3;
+            border: #c0c0c0 0.5vmin solid;
+            border-radius: 0.5vmin;
+        }
     </style>
 </head>
 <body>
     <main>
         <h1>llm4mesen</h1>
-        <h2>An LLM-to-game pipeline for playing and evaluating large language models on classic 2D games via the Mesen emulator.</h2>
-        <h2><a href="https://www.github.com/darkzant/llm4mesen">Github Repository</a></h2>
-        <h2><a href="paper.pdf">Paper</a></h2>
-        <h2><a href="https://www.youtube.com/watch?v=NMzPKq6oF2g">Example video</a></h2>
+        <h2 id="desc">An LLM-to-game pipeline for playing and evaluating large language models on classic 2D games via the <a href="https://www.mesen.ca/">Mesen</a> emulator.</h2>
+        <h2 id="links">
+            <a href="paper.pdf">Paper</a>
+            <a href="https://www.github.com/darkzant/llm4mesen">Github Repository</a>
+        </h2>
+        <iframe 
+            src="https://www.youtube.com/embed/NMzPKq6oF2g?autoplay=1&mute=1&loop=1&playlist=NMzPKq6oF2g"
+            title="Presentation Video"
+            frameborder="0"
+            allowfullscreen
+        ></iframe>
     </main>
 </body>
 </html>
